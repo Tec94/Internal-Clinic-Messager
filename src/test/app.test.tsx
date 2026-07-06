@@ -1,0 +1,126 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { App } from '../App'
+import i18n from '../i18n'
+import { AppearanceProvider } from '../state/AppearanceContext'
+import { ClinicProvider } from '../state/ClinicContext'
+
+function renderApp(path: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AppearanceProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <ClinicProvider>
+            <App />
+          </ClinicProvider>
+        </MemoryRouter>
+      </AppearanceProvider>
+    </QueryClientProvider>,
+  )
+}
+
+describe('clinic messenger application', () => {
+  beforeEach(async () => {
+    localStorage.clear()
+    await i18n.changeLanguage('en-US')
+  })
+
+  it('renders the employee inbox with the shared shell', () => {
+    renderApp('/inbox')
+    expect(screen.getByRole('heading', { name: /good morning, linh/i })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: /primary/i })).toBeInTheDocument()
+    expect(screen.getByText(/recent channels/i)).toBeInTheDocument()
+  })
+
+  it('keeps regular employees out of owner settings', async () => {
+    renderApp('/admin/settings')
+    expect(await screen.findByRole('heading', { name: /do not have access/i })).toBeInTheDocument()
+  })
+
+  it('allows the owner to open the administrative location view', async () => {
+    localStorage.setItem('clinic-persona', 'user-owner')
+    renderApp('/admin/locations')
+    expect(await screen.findByRole('heading', { name: 'Locations' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add location/i })).toBeInTheDocument()
+  })
+
+  it('opens and cancels the authoritative channel creation dialog', async () => {
+    const user = userEvent.setup()
+    renderApp('/inbox')
+    const createButtons = screen.getAllByRole('button', { name: /create channel/i })
+    createButtons[0].focus()
+    await user.click(createButtons[0])
+
+    const dialog = screen.getByRole('dialog', {
+      name: /create cross-department channel/i,
+    })
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByLabelText(/channel name/i)).toHaveValue(
+      'same-day-schedule-dr-nguyen',
+    )
+    expect(screen.getAllByText(/no patient details/i)).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    await waitFor(() => expect(createButtons[0]).toHaveFocus())
+  })
+
+  it('uses the agreed primary navigation order and persists theme selection', async () => {
+    const user = userEvent.setup()
+    renderApp('/inbox')
+    const navigation = screen.getByRole('navigation', { name: /primary navigation/i })
+    expect(within(navigation).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inbox', 'Chat', 'Tasks', 'Documents', 'Meetings', 'People'])
+    await user.click(screen.getAllByRole('radio', { name: 'Graphite' })[0])
+    expect(document.documentElement).toHaveAttribute('data-theme', 'graphite-indigo')
+    expect(localStorage.getItem('clinic-theme')).toBe('graphite-indigo')
+  })
+
+  it('opens module-specific task search and task details', async () => {
+    renderApp('/tasks/task-terminal')
+    expect(await screen.findByPlaceholderText('Search tasks, owners, or chats')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Kiểm tra máy check-in B' })).toBeInTheDocument()
+    expect(screen.getAllByText('Lễ tân — công việc chung').length).toBeGreaterThan(0)
+  })
+
+  it('confirms a detected meeting before posting it', async () => {
+    const user = userEvent.setup()
+    renderApp('/channels/front-desk-home')
+    const composer = await screen.findByPlaceholderText(/Message #front-desk-home/i)
+    await user.type(composer, 'Team sync July 7, 2026 at 10:00 AM https://meet.google.com/abc-defg-hij')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    const dialog = screen.getByRole('dialog', { name: 'Confirm meeting details' })
+    await user.clear(within(dialog).getByLabelText('Meeting title'))
+    await user.type(within(dialog).getByLabelText('Meeting title'), 'Front desk team sync')
+    await user.click(within(dialog).getByRole('button', { name: 'Post invitation' }))
+    expect(await screen.findByRole('heading', { name: 'Front desk team sync' })).toBeInTheDocument()
+  })
+
+  it('traps the compact task sheet and restores focus when it closes', async () => {
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: query.includes('1180'), media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }))
+    const user = userEvent.setup()
+    renderApp('/channels/same-day-schedule')
+    const trigger = await screen.findByRole('button', { name: 'Open channel tasks' })
+    await user.click(trigger)
+    const sheet = await screen.findByRole('dialog', { name: /tasks.*documents/i })
+    await user.click(within(sheet).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /tasks.*documents/i })).not.toBeInTheDocument())
+    await waitFor(() => expect(trigger).toHaveFocus())
+    window.matchMedia = originalMatchMedia
+  })
+
+  it('limits the contextual document sheet to the current chat', async () => {
+    const user = userEvent.setup()
+    renderApp('/channels/same-day-schedule')
+    await user.click(await screen.findByRole('button', { name: 'Open channel documents' }))
+    const sheet = screen.getByRole('complementary', { name: /tasks.*documents/i })
+    expect(within(sheet).getByText('Quy trình điều chỉnh lịch.pdf')).toBeInTheDocument()
+    expect(within(sheet).queryByText('Hướng dẫn bàn giao lễ tân.pdf')).not.toBeInTheDocument()
+  })
+})
