@@ -1,12 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import i18n from '../i18n'
 import { AppearanceProvider } from '../state/AppearanceContext'
-import { ClinicProvider } from '../state/ClinicContext'
+import { ClinicProvider, useClinic } from '../state/ClinicContext'
 
 function renderApp(path: string) {
   const queryClient = new QueryClient({
@@ -22,6 +23,22 @@ function renderApp(path: string) {
         </MemoryRouter>
       </AppearanceProvider>
     </QueryClientProvider>,
+  )
+}
+
+function DirectChannelProbe() {
+  const { channels, ensureDirectChannel } = useClinic()
+  const [openedIds, setOpenedIds] = useState<string[]>([])
+  const directCount = channels.filter((channel) => channel.type === 'direct').length
+  return (
+    <div>
+      <button type="button" onClick={() => {
+        const channel = ensureDirectChannel('user-manager')
+        setOpenedIds((items) => [...items, channel?.id ?? 'none'])
+      }}>Open manager DM</button>
+      <output aria-label="direct-count">{directCount}</output>
+      <output aria-label="opened-ids">{openedIds.join(',')}</output>
+    </div>
   )
 }
 
@@ -99,6 +116,69 @@ describe('clinic messenger application', () => {
     await user.type(within(dialog).getByLabelText('Meeting title'), 'Front desk team sync')
     await user.click(within(dialog).getByRole('button', { name: 'Post invitation' }))
     expect(await screen.findByRole('heading', { name: 'Front desk team sync' })).toBeInTheDocument()
+  })
+
+  it('opens a direct message from the people page', async () => {
+    const user = userEvent.setup()
+    renderApp('/people')
+    const peopleButtons = await screen.findAllByRole('button', { name: /Trần Thu Hà/i })
+    await user.click(peopleButtons[peopleButtons.length - 1])
+    expect(await screen.findByRole('heading', { level: 1, name: 'Trần Thu Hà' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Message #dm-/i)).toBeInTheDocument()
+  })
+
+  it('shows members and translated roles in the channel drawer', async () => {
+    const user = userEvent.setup()
+    renderApp('/channels/front-desk-home')
+    await user.click(await screen.findByRole('button', { name: 'View members and roles' }))
+    const dialog = screen.getByRole('dialog', { name: 'Channel members and roles' })
+    expect(within(dialog).getByText('Phạm Ngọc Linh')).toBeInTheDocument()
+    expect(within(dialog).getByText('Department lead')).toBeInTheDocument()
+  })
+
+  it('disables sending when a scoped viewer is not a channel member', async () => {
+    localStorage.setItem('clinic-persona', 'user-owner')
+    renderApp('/channels/front-desk-coverage')
+    expect(await screen.findByPlaceholderText('View-only conversation')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.getByText(/only active members/i)).toBeInTheDocument()
+  })
+
+  it('creates a task from a chat message assignment drawer', async () => {
+    const user = userEvent.setup()
+    renderApp('/channels/front-desk-home')
+    await user.click((await screen.findAllByRole('button', { name: 'Assign task' }))[0])
+    const dialog = screen.getByRole('dialog', { name: 'Assign task' })
+    await user.clear(within(dialog).getByLabelText('Task title'))
+    await user.type(within(dialog).getByLabelText('Task title'), 'Call facilities')
+    await user.click(within(dialog).getByRole('button', { name: 'Assign task' }))
+    expect(await screen.findByText('Call facilities')).toBeInTheDocument()
+  })
+
+  it('uploads an attachment and links it to a sent chat message', async () => {
+    const user = userEvent.setup()
+    renderApp('/channels/front-desk-home')
+    await user.click(await screen.findByRole('button', { name: 'Attach file' }))
+    const file = new File(['handoff'], 'handoff.pdf', { type: 'application/pdf' })
+    await user.upload(screen.getByLabelText('Upload files'), file)
+    await user.type(screen.getByPlaceholderText(/Message #front-desk-home/i), 'Shared the handoff file')
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(await screen.findByText('handoff.pdf')).toBeInTheDocument()
+  })
+
+  it('displays event counters on the meetings mini schedule', async () => {
+    renderApp('/meetings')
+    expect(await screen.findByLabelText('July 7, 1 events')).toBeInTheDocument()
+  })
+
+  it('reuses an existing direct channel for repeated person opens', async () => {
+    const user = userEvent.setup()
+    render(<ClinicProvider><DirectChannelProbe /></ClinicProvider>)
+    await user.click(screen.getByRole('button', { name: 'Open manager DM' }))
+    expect(screen.getByLabelText('direct-count')).toHaveTextContent('1')
+    await user.click(screen.getByRole('button', { name: 'Open manager DM' }))
+    expect(screen.getByLabelText('direct-count')).toHaveTextContent('1')
+    expect(screen.getByLabelText('opened-ids').textContent?.split(',')).toEqual(['dm-user-employee-user-manager', 'dm-user-employee-user-manager'])
   })
 
   it('traps the compact task sheet and restores focus when it closes', async () => {

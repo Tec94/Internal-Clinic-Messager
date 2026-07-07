@@ -141,11 +141,14 @@ export interface Attachment {
   name: string
   type: string
   sizeLabel: string
+  sizeBytes?: number
   uploadedBy: string
   uploadedAt: string
   channelId: string
   messageId: string
   taskId?: string
+  previewUrl?: string
+  downloadUrl?: string
 }
 
 export interface Message {
@@ -214,6 +217,49 @@ export interface CreateMeetingInput {
   startsAt: string
   endsAt: string
   timezone: string
+}
+
+export interface SendMessageInput {
+  channelId: string
+  body: string
+  urgent: boolean
+  attachmentIds?: string[]
+  taskId?: string
+  meetingId?: string
+}
+
+export interface CreateTaskInput {
+  channelId: string
+  title: string
+  ownerId: string
+  collaboratorIds: string[]
+  dueAt: string
+  checklist: string[]
+  attachmentIds?: string[]
+  sourceMessageId?: string
+}
+
+export interface UpdateTaskInput {
+  title?: string
+  ownerId?: string
+  collaboratorIds?: string[]
+  dueAt?: string
+  status?: Task['status']
+  checklist?: Task['checklist']
+  attachmentIds?: string[]
+  sourceMessageId?: string
+}
+
+export type UploadTarget =
+  | { kind: 'message'; channelId: string; messageId?: string }
+  | { kind: 'task'; channelId: string; taskId?: string; messageId?: string }
+
+export interface UploadAttachmentAdapter {
+  upload: (
+    files: File[],
+    target: UploadTarget,
+    uploadedBy: string,
+  ) => Promise<Attachment[]>
 }
 
 export interface AnnouncementAudience {

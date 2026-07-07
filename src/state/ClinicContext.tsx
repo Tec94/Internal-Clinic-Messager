@@ -14,25 +14,32 @@ import {
   messages as seedMessages,
   meetingResponses as seedMeetingResponses,
   meetings as seedMeetings,
+  memberships as seedMemberships,
   organization,
   roleBindings,
   tasks as seedTasks,
   users,
 } from '../data/seed'
-import { hasPermission } from '../services/permissions'
+import { canSendMessageInChannel, hasPermission } from '../services/permissions'
+import { mockUploadAdapter } from '../services/uploadAdapter'
 import type {
   Announcement,
   Channel,
+  ChannelMembership,
   CreateMeetingInput,
   CreateAnnouncementInput,
   CreateChannelInput,
+  CreateTaskInput,
   Message,
   Meeting,
   MeetingResponse,
   MeetingResponseStatus,
   Permission,
+  SendMessageInput,
   Task,
   Attachment,
+  UpdateTaskInput,
+  UploadTarget,
 } from '../types/domain'
 
 interface ClinicContextValue {
@@ -43,6 +50,7 @@ interface ClinicContextValue {
   assignments: typeof assignments
   roleBindings: typeof roleBindings
   channels: Channel[]
+  memberships: ChannelMembership[]
   messages: Message[]
   tasks: Task[]
   attachments: Attachment[]
@@ -56,7 +64,12 @@ interface ClinicContextValue {
   setCurrentLocationId: (locationId: string) => void
   hasPermission: (permission: Permission) => boolean
   createChannel: (input: CreateChannelInput) => Channel
-  sendMessage: (channelId: string, body: string, urgent: boolean) => Message
+  canSendMessage: (channelId: string) => boolean
+  ensureDirectChannel: (targetUserId: string) => Channel | null
+  sendMessage: (input: SendMessageInput) => Message | null
+  createTask: (input: CreateTaskInput) => Task
+  updateTask: (taskId: string, patch: UpdateTaskInput) => void
+  uploadAttachments: (files: File[], target: UploadTarget) => Promise<Attachment[]>
   createMeeting: (input: CreateMeetingInput) => Meeting
   respondToMeeting: (meetingId: string, status: MeetingResponseStatus) => void
   createAnnouncement: (input: CreateAnnouncementInput) => Announcement
@@ -73,9 +86,10 @@ export function ClinicProvider({ children }: PropsWithChildren) {
   const [currentUserId, setCurrentUserIdState] = useState(getInitialUserId)
   const [currentLocationId, setCurrentLocationId] = useState('loc-a')
   const [channels, setChannels] = useState(seedChannels)
+  const [memberships, setMemberships] = useState(seedMemberships)
   const [messages, setMessages] = useState(seedMessages)
-  const [tasks] = useState(seedTasks)
-  const [attachments] = useState(seedAttachments)
+  const [tasks, setTasks] = useState(seedTasks)
+  const [attachments, setAttachments] = useState(seedAttachments)
   const [meetings, setMeetings] = useState(seedMeetings)
   const [meetingResponses, setMeetingResponses] = useState(seedMeetingResponses)
   const [announcements, setAnnouncements] = useState(seedAnnouncements)
@@ -133,21 +147,152 @@ export function ClinicProvider({ children }: PropsWithChildren) {
             ).toISOString(),
     }
     setChannels((items) => [...items, newChannel])
+    setMemberships((items) => [
+      ...items,
+      ...newChannel.memberIds.map((userId, index) => ({
+        id: `${newChannel.id}-member-${index}`,
+        channelId: newChannel.id,
+        userId,
+        source: 'invitation' as const,
+        joinedAt: new Date().toISOString(),
+        expiresAt: newChannel.archiveAt,
+      })),
+    ])
     return newChannel
   }
 
-  const sendMessage = (channelId: string, body: string, urgent: boolean) => {
+  const canSendMessage = (channelId: string) =>
+    canSendMessageInChannel(
+      currentBinding,
+      currentUser.id,
+      channels.find((item) => item.id === channelId),
+    )
+
+  const ensureDirectChannel = (targetUserId: string) => {
+    if (targetUserId === currentUser.id) return null
+    const targetUser = users.find((user) => user.id === targetUserId)
+    if (!targetUser) return null
+    const participantIds = [currentUser.id, targetUserId].sort()
+    const directId = `dm-${participantIds.join('-')}`
+    const existing = channels.find((channel) => channel.id === directId)
+    if (existing) return existing
+    const targetAssignment = assignments.find((assignment) => assignment.userId === targetUserId && assignment.isPrimary)
+    const currentAssignment = assignments.find((assignment) => assignment.userId === currentUser.id && assignment.isPrimary)
+    const locationIds = [currentAssignment?.locationId, targetAssignment?.locationId].filter(
+      (locationId): locationId is string => Boolean(locationId),
+    )
+    const departmentIds = [currentAssignment?.departmentId, targetAssignment?.departmentId].filter(
+      (departmentId): departmentId is string => Boolean(departmentId),
+    )
+    const createdAt = new Date().toISOString()
+    const newChannel: Channel = {
+      id: directId,
+      name: `dm-${targetUser.name.toLowerCase().replace(/\s+/g, '-')}`,
+      displayName: targetUser.name,
+      purpose: `Direct operational conversation with ${targetUser.name}.`,
+      type: 'direct',
+      visibility: 'private',
+      locationIds: Array.from(new Set(locationIds)),
+      departmentIds: Array.from(new Set(departmentIds)),
+      ownerId: currentUser.id,
+      memberIds: participantIds,
+      unreadCount: 0,
+      isUrgent: false,
+    }
+    setChannels((items) => [...items, newChannel])
+    setMemberships((items) => [
+      ...items,
+      ...participantIds.map((userId, index) => ({
+        id: `${directId}-member-${index}`,
+        channelId: directId,
+        userId,
+        source: 'invitation' as const,
+        joinedAt: createdAt,
+      })),
+    ])
+    return newChannel
+  }
+
+  const sendMessage = (input: SendMessageInput) => {
+    if (!canSendMessage(input.channelId)) return null
     const message: Message = {
       id: `message-${Date.now()}`,
-      channelId,
+      channelId: input.channelId,
       authorId: currentUser.id,
-      body,
+      body: input.body,
       createdAt: new Date().toISOString(),
-      isUrgent: urgent,
-      attachmentIds: [],
+      isUrgent: input.urgent,
+      attachmentIds: input.attachmentIds ?? [],
+      taskId: input.taskId,
+      meetingId: input.meetingId,
     }
     setMessages((items) => [...items, message])
+    if (message.attachmentIds.length > 0) {
+      setAttachments((items) =>
+        items.map((attachment) =>
+          message.attachmentIds.includes(attachment.id)
+            ? { ...attachment, messageId: message.id, channelId: message.channelId }
+            : attachment,
+        ),
+      )
+    }
     return message
+  }
+
+  const createTask = (input: CreateTaskInput) => {
+    const createdAt = new Date().toISOString()
+    const taskId = `task-${Date.now()}`
+    const messageId = `message-${Date.now()}-task`
+    const task: Task = {
+      id: taskId,
+      title: input.title,
+      channelId: input.channelId,
+      ownerId: input.ownerId,
+      collaboratorIds: input.collaboratorIds,
+      dueAt: input.dueAt,
+      status: 'open',
+      checklist: input.checklist.map((label, index) => ({
+        id: `${taskId}-check-${index}`,
+        label,
+        completed: false,
+      })),
+      attachmentIds: input.attachmentIds ?? [],
+      sourceMessageId: input.sourceMessageId ?? messageId,
+    }
+    const message: Message = {
+      id: messageId,
+      channelId: input.channelId,
+      authorId: currentUser.id,
+      body: `Assigned task: ${input.title}`,
+      createdAt,
+      isUrgent: false,
+      attachmentIds: input.attachmentIds ?? [],
+      taskId,
+    }
+    setTasks((items) => [task, ...items])
+    setMessages((items) => [...items, message])
+    if (task.attachmentIds.length > 0) {
+      setAttachments((items) =>
+        items.map((attachment) =>
+          task.attachmentIds.includes(attachment.id)
+            ? { ...attachment, channelId: input.channelId, taskId, messageId }
+            : attachment,
+        ),
+      )
+    }
+    return task
+  }
+
+  const updateTask = (taskId: string, patch: UpdateTaskInput) => {
+    setTasks((items) =>
+      items.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
+    )
+  }
+
+  const uploadAttachments = async (files: File[], target: UploadTarget) => {
+    const uploaded = await mockUploadAdapter.upload(files, target, currentUser.id)
+    setAttachments((items) => [...uploaded, ...items])
+    return uploaded
   }
 
   const createAnnouncement = (input: CreateAnnouncementInput) => {
@@ -227,6 +372,7 @@ export function ClinicProvider({ children }: PropsWithChildren) {
     assignments,
     roleBindings,
     channels,
+    memberships,
     messages,
     tasks,
     attachments,
@@ -240,7 +386,12 @@ export function ClinicProvider({ children }: PropsWithChildren) {
     setCurrentLocationId,
     hasPermission: (permission) => hasPermission(currentBinding, permission),
     createChannel,
+    canSendMessage,
+    ensureDirectChannel,
     sendMessage,
+    createTask,
+    updateTask,
+    uploadAttachments,
     createMeeting,
     respondToMeeting,
     createAnnouncement,

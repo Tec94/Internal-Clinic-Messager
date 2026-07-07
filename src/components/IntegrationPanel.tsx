@@ -1,13 +1,14 @@
 import * as Tabs from '@radix-ui/react-tabs'
-import { CalendarDays, Check, FileText, ListChecks, UserRound, X } from 'lucide-react'
+import { CalendarDays, Check, FileText, ListChecks, Plus, UserRound, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
 import type { Channel, Task } from '../types/domain'
-import { Avatar, IconButton, StatusBadge } from './ui'
+import { Avatar, Button, IconButton, StatusBadge } from './ui'
+import { Checkbox } from './ui/motion/checkbox'
 
-export function IntegrationPanel({ channel, initialTab, onClose, onTabChange }: { channel: Channel; initialTab: 'tasks' | 'documents'; onClose: () => void; onTabChange: (tab: 'tasks' | 'documents') => void }) {
+export function IntegrationPanel({ channel, initialTab, onClose, onTabChange, onAssignTask }: { channel: Channel; initialTab: 'tasks' | 'documents'; onClose: () => void; onTabChange: (tab: 'tasks' | 'documents') => void; onAssignTask?: () => void }) {
   const { t } = useTranslation()
   const { users, currentUser, tasks, attachments, channels } = useClinic()
   const panelRef = useRef<HTMLElement>(null)
@@ -73,6 +74,9 @@ export function IntegrationPanel({ channel, initialTab, onClose, onTabChange }: 
           </header>
 
           <Tabs.Content value="tasks" className="integration-content" forceMount hidden={initialTab !== 'tasks'}>
+            <div className="panel-action-row">
+              <Button variant="primary" icon={<Plus size={17} />} onClick={onAssignTask}>{t('task.assignTask')}</Button>
+            </div>
             <PanelSection icon={<ListChecks size={18} />} title={t('channel.fromThisChat')} count={currentTasks.length}>
               {currentTasks.length ? currentTasks.map((task) => <TaskCard key={task.id} task={task} users={users} />) : <p className="panel-empty-copy">{t('channel.noChannelTasks')}</p>}
             </PanelSection>
@@ -98,8 +102,16 @@ function PanelSection({ title, count, icon, children }: { title: string; count: 
 
 function TaskCard({ task, users, source }: { task: Task; users: ReturnType<typeof useClinic>['users']; source?: string }) {
   const { t } = useTranslation()
+  const { updateTask } = useClinic()
   const owner = users.find((user) => user.id === task.ownerId)
-  return <article className="panel-task"><div className="panel-title-row"><h3>{task.title}</h3><StatusBadge tone={task.status === 'done' ? 'success' : 'active'}>{task.status === 'done' ? t('common.done') : t('common.open')}</StatusBadge></div>{source ? <small className="panel-source">{source}</small> : null}<dl className="task-metadata"><div><dt><UserRound size={16} />{t('common.owner')}</dt><dd>{owner ? <><Avatar initials={owner.initials} size="small" />{owner.name}</> : '—'}</dd></div><div><dt><CalendarDays size={16} />{t('common.due')}</dt><dd className="tabular-nums">{formatDate(task.dueAt)}</dd></div></dl><div className="task-checklist">{task.checklist.map((item) => <label key={item.id}><input type="checkbox" defaultChecked={item.completed} /><span>{item.label}</span>{item.completed ? <Check size={16} /> : null}</label>)}</div></article>
+  const setChecklistItem = (itemId: string, completed: boolean) => {
+    const checklist = task.checklist.map((item) => item.id === itemId ? { ...item, completed } : item)
+    updateTask(task.id, {
+      checklist,
+      status: checklist.every((item) => item.completed) ? 'done' : 'inProgress',
+    })
+  }
+  return <article className="panel-task"><div className="panel-title-row"><h3>{task.title}</h3><StatusBadge tone={task.status === 'done' ? 'success' : 'active'}>{task.status === 'done' ? t('common.done') : t('common.open')}</StatusBadge></div>{source ? <small className="panel-source">{source}</small> : null}<dl className="task-metadata"><div><dt><UserRound size={16} />{t('common.owner')}</dt><dd>{owner ? <><Avatar initials={owner.initials} size="small" />{owner.name}</> : '—'}</dd></div><div><dt><CalendarDays size={16} />{t('common.due')}</dt><dd className="tabular-nums">{formatDate(task.dueAt)}</dd></div></dl><div className="task-checklist">{task.checklist.map((item) => <div className="task-check-row" key={item.id}><Checkbox checked={item.completed} onCheckedChange={(checked) => setChecklistItem(item.id, checked)} aria-label={item.label} /><span>{item.label}</span>{item.completed ? <Check size={16} /> : null}</div>)}</div></article>
 }
 
 function formatDate(value: string) {

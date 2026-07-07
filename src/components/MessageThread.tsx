@@ -1,11 +1,17 @@
-import { CheckCircle2, ExternalLink, FileText, Video } from 'lucide-react'
+import { CheckCircle2, ExternalLink, FileText, ListPlus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
 import type { Channel, Meeting } from '../types/domain'
 import { Avatar, Button, StatusBadge } from './ui'
 
-export function MessageThread({ channel }: { channel: Channel }) {
+export function MessageThread({
+  channel,
+  onAssignTask,
+}: {
+  channel: Channel
+  onAssignTask?: (messageId?: string, body?: string) => void
+}) {
   const { t } = useTranslation()
   const { messages, users, currentUser, attachments, tasks, meetings, meetingResponses, respondToMeeting, channels } = useClinic()
   const channelMessages = messages.filter((message) => message.channelId === channel.id)
@@ -38,11 +44,17 @@ export function MessageThread({ channel }: { channel: Channel }) {
                 {message.isUrgent ? <StatusBadge tone="urgent">{t('common.urgent')}</StatusBadge> : null}
               </header>
               <div className="message__bubble"><p>{message.body}</p></div>
+              {onAssignTask ? (
+                <button className="message-action" type="button" onClick={() => onAssignTask(message.id, message.body)}>
+                  <ListPlus size={15} aria-hidden="true" />
+                  {t('task.assignTask')}
+                </button>
+              ) : null}
               {messageAttachments.map((attachment) => (
-                <button className="attachment-row" key={attachment.id}>
+                <a className="attachment-row" key={attachment.id} href={attachment.downloadUrl ?? attachment.previewUrl} target="_blank" rel="noreferrer" aria-disabled={!attachment.downloadUrl && !attachment.previewUrl}>
                   <FileText size={20} aria-hidden="true" />
                   <span><strong>{attachment.name}</strong><small>{attachment.sizeLabel}</small></span>
-                </button>
+                </a>
               ))}
               {linkedTask ? (
                 <button className="linked-task">
@@ -63,7 +75,7 @@ export function MessageThread({ channel }: { channel: Channel }) {
 function MeetingCard({ meeting, response, organizerName, channelName, onRespond }: { meeting?: Meeting; response?: 'accepted' | 'declined'; organizerName?: string; channelName?: string; onRespond: (status: 'accepted' | 'declined') => void }) {
   const { t } = useTranslation()
   if (!meeting) return null
-  return <section className="meeting-card" aria-label={t('meeting.title')}><header><span className="meeting-card__provider"><Video size={17} />{t(`meeting.${meeting.provider}`)}</span>{response ? <StatusBadge tone={response === 'accepted' ? 'success' : 'neutral'}>{t(`meeting.${response}`)}</StatusBadge> : <StatusBadge tone="urgent">{t('meeting.pending')}</StatusBadge>}</header><h3>{meeting.title}</h3><p className="meeting-card__time tabular-nums">{formatMeetingTime(meeting.startsAt)}–{formatMeetingTime(meeting.endsAt, true)}</p><small>{t('meeting.organizer')}: {organizerName} · {channelName}</small><div className="meeting-card__actions"><Button className={response === 'accepted' ? 'is-selected' : ''} aria-pressed={response === 'accepted'} onClick={() => onRespond('accepted')}>{t('meeting.accept')}</Button><Button className={response === 'declined' ? 'is-selected' : ''} aria-pressed={response === 'declined'} onClick={() => onRespond('declined')}>{t('meeting.decline')}</Button><a className="button button--primary" href={meeting.joinUrl} target="_blank" rel="noreferrer">{t('meeting.join')}<ExternalLink size={16} /></a></div></section>
+  return <section className="meeting-card" aria-label={t('meeting.title')}><header><span className="meeting-card__provider"><Video size={17} />{t(`meeting.${meeting.provider}`)}</span>{response ? <StatusBadge tone={response === 'accepted' ? 'success' : 'neutral'}>{t(`meeting.${response}`)}</StatusBadge> : <StatusBadge tone="urgent">{t('meeting.pending')}</StatusBadge>}</header><h3>{meeting.title}</h3><p className="meeting-card__time tabular-nums">{formatMeetingTime(meeting.startsAt)}–{formatMeetingTime(meeting.endsAt, true)}</p><small>{t('meeting.organizer')}: {organizerName} · {channelName}</small><dl className="meeting-card__details"><div><dt>{t('meeting.provider')}</dt><dd>{t(`meeting.${meeting.provider}`)}</dd></div><div><dt>{t('meeting.timezone')}</dt><dd>{meeting.timezone}</dd></div><div><dt>{t('meeting.link')}</dt><dd><a href={meeting.joinUrl} target="_blank" rel="noreferrer">{formatMeetingUrl(meeting.joinUrl)}<ExternalLink size={13} /></a></dd></div></dl><div className="meeting-card__actions"><Button className={response === 'accepted' ? 'is-selected' : ''} aria-pressed={response === 'accepted'} onClick={() => onRespond('accepted')}>{t('meeting.accept')}</Button><Button className={response === 'declined' ? 'is-selected' : ''} aria-pressed={response === 'declined'} onClick={() => onRespond('declined')}>{t('meeting.decline')}</Button><a className="button button--primary" href={meeting.joinUrl} target="_blank" rel="noreferrer">{t('meeting.join')}<ExternalLink size={16} /></a></div></section>
 }
 
 function formatTime(value: string) {
@@ -76,4 +88,13 @@ function formatTime(value: string) {
 
 function formatMeetingTime(value: string, timeOnly = false) {
   return new Intl.DateTimeFormat(i18n.language, timeOnly ? { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' } : { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value))
+}
+
+function formatMeetingUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return `${url.host}${url.pathname}`
+  } catch {
+    return value
+  }
 }

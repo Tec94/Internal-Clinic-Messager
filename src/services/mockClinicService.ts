@@ -52,16 +52,78 @@ const monthIndexes: Record<string, number> = {
   july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
 }
 
+function trimUrl(value: string) {
+  let next = value.trim()
+  let changed = true
+  while (changed) {
+    const previous = next
+    while (/[.,;:!?]$/.test(next)) next = next.slice(0, -1)
+    while (next.endsWith(')') && !next.includes('(')) next = next.slice(0, -1)
+    while (next.endsWith(']') && !next.includes('[')) next = next.slice(0, -1)
+    changed = previous !== next
+  }
+  return next
+}
+
+function supportedMeetingUrl(value: string) {
+  const urls = value.match(/https?:\/\/[^\s<>"']+/gi) ?? []
+  for (const rawUrl of urls) {
+    const candidate = trimUrl(rawUrl)
+    try {
+      const url = new URL(candidate)
+      const host = url.hostname.toLowerCase()
+      if (host === 'meet.google.com' && /^\/[a-z0-9-]+$/i.test(url.pathname)) {
+        return { provider: 'googleMeet' as const, joinUrl: candidate }
+      }
+      if (host === 'zoom.us' || host.endsWith('.zoom.us')) {
+        const firstSegment = url.pathname.split('/').filter(Boolean)[0]
+        if (['j', 'my', 'wc'].includes(firstSegment ?? '')) {
+          return { provider: 'zoom' as const, joinUrl: candidate }
+        }
+      }
+    } catch {
+      // Ignore malformed URLs and keep scanning the message.
+    }
+  }
+  return null
+}
+
+function titleFromMeetingText(value: string, joinUrl: string) {
+  const beforeLink = value.slice(0, value.indexOf(joinUrl)).trim()
+  if (!beforeLink) return undefined
+  const withoutDates = beforeLink
+    .replace(/\b(?:at|lúc)\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM)?\b/gi, '')
+    .replace(/\b(?:on|ngày)?\s*\d{1,2}\/\d{1,2}\/\d{4}\b/gi, '')
+    .replace(/\b\d{4}-\d{1,2}-\d{1,2}\b/gi, '')
+    .replace(/\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:,)?\s+\d{4}\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[.,;:-]\s*$/g, '')
+    .trim()
+  return withoutDates.length >= 3 ? withoutDates : beforeLink
+}
+
+function toHoChiMinhIso(value: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).formatToParts(value)
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}+07:00`
+}
+
 export function detectMeetingCandidate(
   value: string,
   timezone = 'Asia/Ho_Chi_Minh',
 ): MeetingCandidate | null {
-  const zoomUrl = value.match(/https?:\/\/(?:[\w-]+\.)?zoom\.us\/(?:j|my|wc)\/[\w?=&.-]+/i)?.[0]
-  const meetUrl = value.match(/https?:\/\/meet\.google\.com\/[\w-]+/i)?.[0]
-  const joinUrl = meetUrl ?? zoomUrl
-  if (!joinUrl) return null
-
-  const provider = meetUrl ? 'googleMeet' : 'zoom'
+  const match = supportedMeetingUrl(value)
+  if (!match) return null
+  const { provider, joinUrl } = match
   const viDate = value.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/)
   const isoDate = value.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/)
   const englishDate = value.match(/\b([A-Za-z]+)\s+(\d{1,2})(?:,)?\s+(\d{4})\b/)
@@ -95,11 +157,11 @@ export function detectMeetingCandidate(
     const start = new Date(local)
     if (!Number.isNaN(start.valueOf())) {
       startsAt = local
-      endsAt = new Date(start.valueOf() + 30 * 60_000).toISOString()
+      endsAt = toHoChiMinhIso(new Date(start.valueOf() + 30 * 60_000))
     }
   }
 
-  return { provider, joinUrl, startsAt, endsAt, timezone }
+  return { provider, joinUrl, title: titleFromMeetingText(value, joinUrl), startsAt, endsAt, timezone }
 }
 
 const warningPatterns = [

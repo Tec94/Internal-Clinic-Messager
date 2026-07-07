@@ -23,12 +23,13 @@ import { AppearanceSwitcher } from './AppearanceSwitcher'
 
 export function AppShell() {
   const { t } = useTranslation()
-  const { hasPermission } = useClinic()
+  const { hasPermission, channels } = useClinic()
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [createChannelOpen, setCreateChannelOpen] = useState(false)
   const channelDialogTrigger = useRef<HTMLElement | null>(null)
+  const unreadTotal = channels.reduce((total, channel) => total + channel.unreadCount, 0)
 
   const openCreateChannel = () => {
     channelDialogTrigger.current = document.activeElement as HTMLElement | null
@@ -83,7 +84,7 @@ export function AppShell() {
           <IconButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.openNavigation')}><Menu size={21} /></IconButton>
           <strong>{t('app.name')}</strong>
           <div className="compact-actions">
-            <Bell size={19} aria-hidden="true" />
+            <span className="notification-counter" aria-label={t('nav.notifications', { count: unreadTotal })}><Bell size={19} aria-hidden="true" />{unreadTotal > 0 ? <span>{unreadTotal}</span> : null}</span>
             <AppearanceSwitcher compact />
             <LanguageSwitcher />
           </div>

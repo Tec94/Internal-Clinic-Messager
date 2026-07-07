@@ -1,7 +1,7 @@
 import { ChevronDown, Languages, LockKeyhole, Plus, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
 import type { Channel, ChannelType } from '../types/domain'
@@ -30,6 +30,7 @@ const adminLinks = [
 export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSidebarProps) {
   const { t } = useTranslation()
   const location = useLocation()
+  const navigate = useNavigate()
   const {
     channels,
     users,
@@ -40,6 +41,7 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
     setCurrentLocationId,
     setCurrentUserId,
     roleBindings,
+    ensureDirectChannel,
   } = useClinic()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'unread' | 'mentions' | 'urgent'>('all')
@@ -76,6 +78,13 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
     { title: t('sidebar.crossDepartment'), types: ['interface', 'project', 'incident'] },
     { title: t('sidebar.announcements'), types: ['announcement', 'leadership', 'location'] },
   ]
+
+  const openDirectMessage = (userId: string) => {
+    const channel = ensureDirectChannel(userId)
+    if (!channel) return
+    navigate(`/channels/${channel.id}`)
+    onClose()
+  }
 
   return (
     <aside className={`workspace-sidebar ${open ? 'workspace-sidebar--open' : ''}`} aria-label={sidebarLabel}>
@@ -139,8 +148,8 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
             <section className="channel-group">
               <h2>{t('sidebar.directMessages')}</h2>
               <div className="channel-group__list">
-                {users.filter((user) => ['user-lead', 'user-float'].includes(user.id)).map((user) => (
-                  <button key={user.id} className="direct-message-row">
+                {users.filter((user) => user.id !== currentUser.id).map((user) => (
+                  <button key={user.id} className="direct-message-row" onClick={() => openDirectMessage(user.id)}>
                     <Avatar initials={user.initials} presence={user.presence} size="small" />
                     <span>{user.name}</span>
                   </button>

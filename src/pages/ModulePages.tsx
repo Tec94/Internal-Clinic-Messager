@@ -11,6 +11,7 @@ import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
 import type { Meeting } from '../types/domain'
 import { Avatar, StatusBadge } from '../components/ui'
+import { Checkbox } from '../components/ui/motion/checkbox'
 
 function formatDate(value: string, options?: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat(i18n.language, {
@@ -40,6 +41,7 @@ export function TasksPage() {
   const { taskId } = useParams()
   const { t } = useTranslation()
   const { tasks, users, currentUser } = useClinic()
+  const { updateTask } = useClinic()
   const channels = useAccessibleChannels()
   const visible = tasks.filter((task) =>
     channels.some((channel) => channel.id === task.channelId) &&
@@ -51,6 +53,13 @@ export function TasksPage() {
   const channel = channels.find((item) => item.id === task.channelId)
   if (!channel) return <Navigate to="/tasks" replace />
   const owner = users.find((user) => user.id === task.ownerId)
+  const setChecklistItem = (itemId: string, completed: boolean) => {
+    const checklist = task.checklist.map((item) => item.id === itemId ? { ...item, completed } : item)
+    updateTask(task.id, {
+      checklist,
+      status: checklist.every((item) => item.completed) ? 'done' : 'inProgress',
+    })
+  }
 
   return (
     <div className="module-page page-scroll">
@@ -63,7 +72,7 @@ export function TasksPage() {
         <div className="module-detail-main">
           <h2>{t('channel.tasks')}</h2>
           <div className="task-checklist">
-            {task.checklist.map((item) => <label key={item.id}><input type="checkbox" defaultChecked={item.completed} /><span>{item.label}</span>{item.completed ? <CheckCircle2 size={17} /> : null}</label>)}
+            {task.checklist.map((item) => <div className="task-check-row" key={item.id}><Checkbox checked={item.completed} onCheckedChange={(checked) => setChecklistItem(item.id, checked)} aria-label={item.label} /><span>{item.label}</span>{item.completed ? <CheckCircle2 size={17} /> : null}</div>)}
           </div>
         </div>
         <aside className="module-metadata">
@@ -145,7 +154,7 @@ function MeetingDetail({ meeting }: { meeting: Meeting }) {
   const { channels, users } = useClinic()
   const channel = channels.find((item) => item.id === meeting.channelId)
   const organizer = users.find((item) => item.id === meeting.organizerId)
-  return <section className="meeting-detail"><Video size={24} /><div><span>{t(`meeting.${meeting.provider}`)}</span><h2>{meeting.title}</h2><p className="tabular-nums">{formatDate(meeting.startsAt)}–{formatDate(meeting.endsAt, { hour: 'numeric', minute: '2-digit' })}</p><small>{organizer?.name} · {channel?.displayName}</small></div><a className="button button--primary" href={meeting.joinUrl} target="_blank" rel="noreferrer">{t('meeting.join')}</a></section>
+  return <section className="meeting-detail"><Video size={24} /><div><span>{t(`meeting.${meeting.provider}`)}</span><h2>{meeting.title}</h2><p className="tabular-nums">{formatDate(meeting.startsAt)}–{formatDate(meeting.endsAt, { hour: 'numeric', minute: '2-digit' })}</p><small>{organizer?.name} · {channel?.displayName} · {meeting.timezone}</small><a className="meeting-detail__url" href={meeting.joinUrl} target="_blank" rel="noreferrer">{formatMeetingUrl(meeting.joinUrl)}</a></div><a className="button button--primary" href={meeting.joinUrl} target="_blank" rel="noreferrer">{t('meeting.join')}</a></section>
 }
 
 function MeetingSection({ title, meetings, channels, users }: { title: string; meetings: Meeting[]; channels: ReturnType<typeof useAccessibleChannels>; users: ReturnType<typeof useClinic>['users'] }) {
@@ -155,4 +164,13 @@ function MeetingSection({ title, meetings, channels, users }: { title: string; m
 
 function ModuleEmpty({ icon, title }: { icon: React.ReactNode; title: string }) {
   return <div className="module-empty">{icon}<h1>{title}</h1></div>
+}
+
+function formatMeetingUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return `${url.host}${url.pathname}`
+  } catch {
+    return value
+  }
 }
