@@ -7,7 +7,6 @@ import { useClinic } from '../state/ClinicContext'
 import type { Channel, ChannelType } from '../types/domain'
 import { Avatar, Button, ChannelGlyph, IconButton } from './ui'
 import { ModuleSidebar, type ModuleSidebarMode } from './ModuleSidebar'
-import { AppearanceSwitcher } from './AppearanceSwitcher'
 
 interface WorkspaceSidebarProps {
   open: boolean
@@ -180,10 +179,6 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
             <button className={i18n.language === 'en-US' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('en-US')} aria-pressed={i18n.language === 'en-US'}>EN</button>
             <button className={i18n.language === 'vi-VN' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('vi-VN')} aria-pressed={i18n.language === 'vi-VN'}>VI</button>
           </div>
-        </div>
-        <div className="sidebar-appearance">
-          <span>{t('appearance.label')}</span>
-          <AppearanceSwitcher />
         </div>
       </footer>
     </aside>

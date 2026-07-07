@@ -19,7 +19,6 @@ import { useClinic } from '../state/ClinicContext'
 import { ChannelCreationDialog } from './ChannelCreationDialog'
 import { IconButton } from './ui'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
-import { AppearanceSwitcher } from './AppearanceSwitcher'
 
 export function AppShell() {
   const { t } = useTranslation()
@@ -85,7 +84,6 @@ export function AppShell() {
           <strong>{t('app.name')}</strong>
           <div className="compact-actions">
             <span className="notification-counter" aria-label={t('nav.notifications', { count: unreadTotal })}><Bell size={19} aria-hidden="true" />{unreadTotal > 0 ? <span>{unreadTotal}</span> : null}</span>
-            <AppearanceSwitcher compact />
             <LanguageSwitcher />
           </div>
         </div>

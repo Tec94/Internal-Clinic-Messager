@@ -142,6 +142,25 @@ Within chat, Tasks and Documents open a contextual sheet from buttons beside
 channel search. Tasks from the current chat appear before other assigned or
 collaborating work. Documents in the sheet are limited to the current chat.
 
+## Design system and component policy
+
+The preview uses one visual system so operational controls look consistent
+across chat, modules, drawers, and dialogs.
+
+- Graphite + Indigo is the fixed theme. The app writes
+  `data-theme="graphite-indigo"` at startup and overwrites stale local theme
+  preferences.
+- Shared BEUI and shadcn components live under `src/components/ui/motion`.
+  Product-specific wrappers and flows stay in `src/components`.
+- Component color must come from design tokens in `src/styles.css`, not from
+  one-off inline values.
+- Checkbox selection uses explicit selected background, border, and mark
+  tokens. The checkmark stays light against the Graphite selected surface in
+  checked and indeterminate states.
+- Lucide icons remain the default for product actions. Generated BEUI
+  components keep their motion behavior, but their color and spacing must
+  follow the Graphite workspace tokens.
+
 ## Administrative governance and control plane
 
 The Admin Center uses the same shell as messaging so managers retain location

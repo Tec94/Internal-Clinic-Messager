@@ -80,12 +80,61 @@ function MiniCalendar({ meetings }: { meetings: Array<{ startsAt: string }> }) {
   const year = Number(new Intl.DateTimeFormat('en', { year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(monthDate))
   const month = Number(new Intl.DateTimeFormat('en', { month: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(monthDate))
   const days = new Date(year, month, 0).getDate()
-  const firstDay = new Date(year, month - 1, 1).getDay()
+  const firstDay = (new Date(year, month - 1, 1).getDay() + 6) % 7
   const meetingDayCounts = meetings.reduce<Record<number, number>>((counts, meeting) => {
     const day = Number(new Intl.DateTimeFormat('en', { day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(meeting.startsAt)))
     counts[day] = (counts[day] ?? 0) + 1
     return counts
   }, {})
   const monthLabel = new Intl.DateTimeFormat(i18n.language, { month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(monthDate)
-  return <section className="mini-calendar" aria-label={monthLabel}><header><CalendarDays size={17} /><strong>{monthLabel}</strong></header><div className="mini-calendar__grid">{Array.from({ length: firstDay }, (_, index) => <span aria-hidden="true" key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const day = index + 1; const count = meetingDayCounts[day] ?? 0; const date = new Date(year, month - 1, day); const label = count > 0 ? t('meeting.eventCountLabel', { date: new Intl.DateTimeFormat(i18n.language, { month: 'long', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }).format(date), count }) : undefined; return <span className={count > 0 ? 'has-meeting' : ''} aria-label={label} key={day}><span className="mini-calendar__date">{day}</span>{count > 0 ? <span className="mini-calendar__count">{count}</span> : null}</span> })}</div></section>
+  const previousMonthDays = new Date(year, month - 1, 0).getDate()
+  const visibleDays = firstDay + days
+  const trailingDays = (7 - (visibleDays % 7)) % 7
+  const weekdayLabels = Array.from({ length: 7 }, (_, index) =>
+    new Intl.DateTimeFormat(i18n.language, { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 0, 5 + index))),
+  )
+  const dayCells = [
+    ...Array.from({ length: firstDay }, (_, index) => ({
+      day: previousMonthDays - firstDay + index + 1,
+      key: `previous-${index}`,
+      outside: true,
+      count: 0,
+    })),
+    ...Array.from({ length: days }, (_, index) => {
+      const day = index + 1
+      return { day, key: `current-${day}`, outside: false, count: meetingDayCounts[day] ?? 0 }
+    }),
+    ...Array.from({ length: trailingDays }, (_, index) => ({
+      day: index + 1,
+      key: `next-${index}`,
+      outside: true,
+      count: 0,
+    })),
+  ]
+  const labelDate = new Intl.DateTimeFormat(i18n.language, { month: 'long', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })
+
+  return (
+    <section className="mini-calendar" aria-label={monthLabel}>
+      <header><CalendarDays size={17} /><strong>{monthLabel}</strong></header>
+      <div className="mini-calendar__grid">
+        {weekdayLabels.map((label) => <span className="mini-calendar__weekday" aria-hidden="true" key={label}>{label}</span>)}
+        {dayCells.map((cell) => {
+          const date = new Date(year, month - 1, cell.day)
+          const label = cell.outside
+            ? undefined
+            : cell.count > 0
+              ? t('meeting.eventCountLabel', { date: labelDate.format(date), count: cell.count })
+              : labelDate.format(date)
+          return (
+            <span className={`mini-calendar__day ${cell.outside ? 'is-outside' : ''} ${cell.count > 0 ? 'has-meeting' : ''}`} aria-hidden={cell.outside || undefined} aria-label={label} key={cell.key}>
+              <span className="mini-calendar__date">{cell.day}</span>
+              <span className="mini-calendar__count" aria-hidden="true">
+                {Array.from({ length: Math.min(cell.count, 3) }, (_, index) => <span className={`mini-calendar__dot mini-calendar__dot--${index + 1}`} key={index} />)}
+              </span>
+            </span>
+          )
+        })}
+      </div>
+    </section>
+  )
 }

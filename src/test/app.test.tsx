@@ -88,12 +88,12 @@ describe('clinic messenger application', () => {
     await waitFor(() => expect(createButtons[0]).toHaveFocus())
   })
 
-  it('uses the agreed primary navigation order and persists theme selection', async () => {
-    const user = userEvent.setup()
+  it('uses the agreed primary navigation order and fixed graphite theme', () => {
+    localStorage.setItem('clinic-theme', 'mineral-petrol')
     renderApp('/inbox')
     const navigation = screen.getByRole('navigation', { name: /primary navigation/i })
     expect(within(navigation).getAllByRole('link').map((link) => link.textContent)).toEqual(['Inbox', 'Chat', 'Tasks', 'Documents', 'Meetings', 'People'])
-    await user.click(screen.getAllByRole('radio', { name: 'Graphite' })[0])
+    expect(screen.queryByRole('radiogroup', { name: /appearance/i })).not.toBeInTheDocument()
     expect(document.documentElement).toHaveAttribute('data-theme', 'graphite-indigo')
     expect(localStorage.getItem('clinic-theme')).toBe('graphite-indigo')
   })

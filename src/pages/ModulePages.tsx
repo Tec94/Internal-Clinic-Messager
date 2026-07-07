@@ -24,6 +24,15 @@ function formatDate(value: string, options?: Intl.DateTimeFormatOptions) {
   }).format(new Date(value))
 }
 
+function formatAgendaDate(value: string) {
+  const date = new Date(value)
+  return {
+    month: new Intl.DateTimeFormat(i18n.language, { month: 'short', timeZone: 'Asia/Ho_Chi_Minh' }).format(date),
+    day: new Intl.DateTimeFormat(i18n.language, { day: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(date),
+    time: new Intl.DateTimeFormat(i18n.language, { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(date),
+  }
+}
+
 function useAccessibleChannels() {
   const { channels, currentBinding, currentLocationId, currentUser } = useClinic()
   return channels.filter((channel) => {
@@ -159,7 +168,7 @@ function MeetingDetail({ meeting }: { meeting: Meeting }) {
 
 function MeetingSection({ title, meetings, channels, users }: { title: string; meetings: Meeting[]; channels: ReturnType<typeof useAccessibleChannels>; users: ReturnType<typeof useClinic>['users'] }) {
   const { t } = useTranslation()
-  return <section className="meeting-agenda"><header><h2>{title}</h2><span>{meetings.length}</span></header>{meetings.length ? meetings.map((meeting) => { const channel = channels.find((item) => item.id === meeting.channelId); const organizer = users.find((item) => item.id === meeting.organizerId); return <Link className="meeting-agenda__row" key={meeting.id} to={`/meetings/${meeting.id}`}><time dateTime={meeting.startsAt}><strong>{formatDate(meeting.startsAt, { day: '2-digit' })}</strong><span>{formatDate(meeting.startsAt, { month: 'short', hour: undefined, minute: undefined })}</span></time><div><h3>{meeting.title}</h3><p>{organizer?.name} · {channel?.displayName}</p></div><StatusBadge tone="active">{t('meeting.accepted')}</StatusBadge></Link> }) : <p className="module-empty-copy">{t('modules.noMeetings')}</p>}</section>
+  return <section className="meeting-agenda"><header><h2>{title}</h2><span>{meetings.length}</span></header>{meetings.length ? meetings.map((meeting) => { const channel = channels.find((item) => item.id === meeting.channelId); const organizer = users.find((item) => item.id === meeting.organizerId); const starts = formatAgendaDate(meeting.startsAt); return <Link className="meeting-agenda__row" key={meeting.id} to={`/meetings/${meeting.id}`}><time className="meeting-agenda__time" dateTime={meeting.startsAt}><span className="meeting-agenda__month">{starts.month}</span><strong>{starts.day}</strong><span className="meeting-agenda__clock">{starts.time}</span></time><div className="meeting-agenda__content"><h3>{meeting.title}</h3><p>{organizer?.name} · {channel?.displayName}</p></div><StatusBadge tone="active">{t('meeting.accepted')}</StatusBadge></Link> }) : <p className="module-empty-copy">{t('modules.noMeetings')}</p>}</section>
 }
 
 function ModuleEmpty({ icon, title }: { icon: React.ReactNode; title: string }) {

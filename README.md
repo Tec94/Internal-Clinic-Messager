@@ -32,8 +32,9 @@ workspace sidebar to test each permission scope.
 - **Đỗ Minh Quân** represents a time-boxed contractor.
 
 Vietnamese is the first-run locale. The **EN** and **VI** controls switch
-between complete interface catalogs. The **Mineral** and **Graphite** controls
-switch between persistent Mineral + Petrol and Graphite + Indigo themes.
+between complete interface catalogs. The workspace uses the fixed
+Graphite + Indigo theme so the visual system stays consistent across the
+preview.
 
 Meeting links from Google Meet and Zoom open a confirmation dialog before the
 app posts an invitation. Accepted invitations appear in the internal Meetings
@@ -75,7 +76,7 @@ Run the local quality checks with these commands:
 - `cmd /c npm run test:e2e`
 
 The Playwright suite covers 1280×1024 desktop, 1024×768 compact desktop, and
-768×1024 tablet viewports, including both appearance themes.
+768×1024 tablet viewports using the fixed Graphite + Indigo theme.
 
 ## Next steps
 

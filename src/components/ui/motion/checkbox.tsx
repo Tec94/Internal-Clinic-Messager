@@ -59,12 +59,12 @@ export function Checkbox({
           checked ? "checked" : indeterminate ? "indeterminate" : "unchecked"
         }
         className={cn(
-          "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 outline-none transition-colors duration-200",
+          "beui-checkbox-control inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 outline-none transition-colors duration-200",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           "disabled:cursor-not-allowed disabled:opacity-60",
           showMark
-            ? "border-primary bg-primary text-primary-foreground"
-            : "border-muted-foreground/50 bg-background hover:border-muted-foreground",
+            ? "beui-checkbox-control--selected"
+            : "beui-checkbox-control--unselected",
         )}
       >
         <AnimatePresence initial={false}>

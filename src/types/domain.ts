@@ -35,7 +35,6 @@ export type Presence = 'online' | 'away' | 'offline'
 export type EmploymentType = 'fullTime' | 'partTime' | 'perDiem' | 'contractor'
 export type AnnouncementStatus = 'draft' | 'scheduled' | 'published' | 'expired'
 export type AnnouncementPriority = 'standard' | 'urgent'
-export type ThemeId = 'mineral-petrol' | 'graphite-indigo'
 export type MeetingProvider = 'zoom' | 'googleMeet'
 export type MeetingResponseStatus = 'accepted' | 'declined'
 
