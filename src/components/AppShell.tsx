@@ -3,7 +3,6 @@ import {
   CalendarDays,
   CircleHelp,
   FileText,
-  Languages,
   LayoutDashboard,
   Menu,
   MessageSquareText,
@@ -14,11 +13,14 @@ import {
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import i18n from '../i18n'
+import { useNativeBackHandler } from '../native/useNativePlatform'
 import { useClinic } from '../state/ClinicContext'
 import { ChannelCreationDialog } from './ChannelCreationDialog'
+import { LanguageSwitcher } from './LanguageSwitcher'
+import { MobileNavigation } from './MobileNavigation'
 import { IconButton } from './ui'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
+import { ZaloPersonalWidget } from './ZaloPersonalWidget'
 
 export function AppShell() {
   const { t } = useTranslation()
@@ -28,7 +30,13 @@ export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [createChannelOpen, setCreateChannelOpen] = useState(false)
   const channelDialogTrigger = useRef<HTMLElement | null>(null)
+  const workspaceMenuTrigger = useRef<HTMLButtonElement | null>(null)
   const unreadTotal = channels.reduce((total, channel) => total + channel.unreadCount, 0)
+
+  const closeSidebar = () => {
+    setSidebarOpen(false)
+    window.setTimeout(() => workspaceMenuTrigger.current?.focus(), 0)
+  }
 
   const openCreateChannel = () => {
     channelDialogTrigger.current = document.activeElement as HTMLElement | null
@@ -42,6 +50,12 @@ export function AppShell() {
     }
   }
 
+  useNativeBackHandler(sidebarOpen || createChannelOpen, () => {
+    if (createChannelOpen) handleCreateChannelOpenChange(false)
+    else closeSidebar()
+    return true
+  })
+
   const navItems = [
     { to: '/inbox', label: t('nav.inbox'), icon: LayoutDashboard, active: location.pathname === '/inbox' },
     { to: '/channels/front-desk-home', label: t('nav.chats'), icon: MessageSquareText, active: location.pathname.startsWith('/channels/') },
@@ -50,6 +64,9 @@ export function AppShell() {
     { to: '/meetings', label: t('nav.meetings'), icon: CalendarDays, active: location.pathname.startsWith('/meetings') },
     { to: '/people', label: t('nav.people'), icon: Users, active: location.pathname.startsWith('/people') },
   ]
+
+  const compactTitle = navItems.find((item) => item.active)?.label
+    ?? (location.pathname.startsWith('/admin') ? t('nav.admin') : t('app.name'))
 
   return (
     <div className="app-shell">
@@ -76,12 +93,13 @@ export function AppShell() {
         </div>
       </nav>
 
-      <WorkspaceSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onCreateChannel={openCreateChannel} />
+      <WorkspaceSidebar open={sidebarOpen} onClose={closeSidebar} onCreateChannel={openCreateChannel} />
 
       <div className="app-main">
         <div className="compact-topbar">
-          <IconButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.openNavigation')}><Menu size={21} /></IconButton>
-          <strong>{t('app.name')}</strong>
+          <IconButton ref={workspaceMenuTrigger} onClick={() => setSidebarOpen(true)} aria-label={t('nav.openNavigation')}><Menu size={21} /></IconButton>
+          <strong className="compact-title compact-title--app">{t('app.name')}</strong>
+          <strong className="compact-title compact-title--route">{compactTitle}</strong>
           <div className="compact-actions">
             <span className="notification-counter" aria-label={t('nav.notifications', { count: unreadTotal })}><Bell size={19} aria-hidden="true" />{unreadTotal > 0 ? <span>{unreadTotal}</span> : null}</span>
             <LanguageSwitcher />
@@ -92,20 +110,11 @@ export function AppShell() {
         </main>
       </div>
 
-      <ChannelCreationDialog open={createChannelOpen} onOpenChange={handleCreateChannelOpenChange} />
-      <button className={`sidebar-scrim ${sidebarOpen ? 'is-visible' : ''}`} onClick={() => setSidebarOpen(false)} aria-label={t('common.close')} />
-    </div>
-  )
-}
+      <MobileNavigation unreadTotal={unreadTotal} />
 
-function LanguageSwitcher() {
-  const { t } = useTranslation()
-  const locale = i18n.language
-  return (
-    <div className="language-switcher" aria-label={t('common.language')}>
-      <Languages size={17} aria-hidden="true" />
-      <button className={locale === 'en-US' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('en-US')} aria-pressed={locale === 'en-US'}>EN</button>
-      <button className={locale === 'vi-VN' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('vi-VN')} aria-pressed={locale === 'vi-VN'}>VI</button>
+      <ChannelCreationDialog open={createChannelOpen} onOpenChange={handleCreateChannelOpenChange} />
+      <ZaloPersonalWidget />
+      <button className={`sidebar-scrim ${sidebarOpen ? 'is-visible' : ''}`} onClick={closeSidebar} aria-label={t('common.close')} />
     </div>
   )
 }

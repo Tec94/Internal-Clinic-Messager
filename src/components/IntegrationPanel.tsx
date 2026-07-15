@@ -38,7 +38,7 @@ export function IntegrationPanel({ channel, initialTab, onClose, onTabChange, on
   useEffect(() => {
     if (!overlay) return
     const returnFocus = document.activeElement as HTMLElement | null
-    const inertTargets = Array.from(document.querySelectorAll<HTMLElement>('.icon-rail, .workspace-sidebar, .compact-topbar, .conversation-column'))
+    const inertTargets = Array.from(document.querySelectorAll<HTMLElement>('.icon-rail, .workspace-sidebar, .compact-topbar, .conversation-column, .mobile-bottom-nav'))
     inertTargets.forEach((target) => { target.inert = true })
     const focusable = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled])') ?? [])
     focusable()[0]?.focus()

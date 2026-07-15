@@ -26,6 +26,7 @@ import { ACCEPTED_ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_FILES } from '../service
 import { useClinic } from '../state/ClinicContext'
 import type { MeetingCandidate } from '../types/domain'
 import { MeetingConfirmationDialog } from '../components/MeetingConfirmationDialog'
+import { useNativeBackHandler } from '../native/useNativePlatform'
 
 export function ChannelPage() {
   const { channelId } = useParams()
@@ -51,6 +52,16 @@ export function ChannelPage() {
   const activePanel = searchParams.get('panel') as 'tasks' | 'documents' | null
   const memberCount = channel?.memberIds.length ?? 0
   const channelTitle = channel?.type === 'direct' ? channel.displayName : channel?.name
+
+  useNativeBackHandler(Boolean(meetingCandidate || showWarning || taskDrawerOpen || membersOpen || activePanel || attachmentsOpen), () => {
+    if (meetingCandidate) setMeetingCandidate(null)
+    else if (showWarning) setShowWarning(false)
+    else if (taskDrawerOpen) closeTaskDrawer(false)
+    else if (membersOpen) setMembersOpen(false)
+    else if (activePanel) setSearchParams({})
+    else setAttachmentsOpen(false)
+    return true
+  })
 
   useEffect(() => {
     if (!activePanel && panelTrigger.current) {

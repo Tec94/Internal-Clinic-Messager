@@ -7,6 +7,7 @@ import './styles.css'
 import { App } from './App'
 import { ClinicProvider } from './state/ClinicContext'
 import { AppearanceProvider } from './state/AppearanceContext'
+import { NativePlatformProvider } from './native/NativePlatformContext'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,9 +23,11 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <AppearanceProvider>
         <BrowserRouter>
-          <ClinicProvider>
-            <App />
-          </ClinicProvider>
+          <NativePlatformProvider>
+            <ClinicProvider>
+              <App />
+            </ClinicProvider>
+          </NativePlatformProvider>
         </BrowserRouter>
       </AppearanceProvider>
     </QueryClientProvider>

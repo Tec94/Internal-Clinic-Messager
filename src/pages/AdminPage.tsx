@@ -123,14 +123,66 @@ function PeopleView() {
   const { users, assignments, roleBindings, locations, departments, currentBinding } = useClinic()
   const [editing, setEditing] = useState<string | null>(null)
   const visibleUsers = users.filter((user) => currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin' || assignments.some((assignment) => assignment.userId === user.id && currentBinding.locationIds.includes(assignment.locationId)))
-  return <section className="management-section"><div className="section-toolbar"><label className="admin-search"><span className="sr-only">{t('common.search')}</span><input placeholder={`${t('common.search')}…`} /></label><Button icon={<Plus size={18} />} variant="primary">{t('admin.invitePerson')}</Button></div><div className="table-wrap"><table><thead><tr><th>{t('nav.people')}</th><th>{t('common.role')}</th><th>{t('common.location')}</th><th>{t('common.department')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead><tbody>{visibleUsers.map((user) => { const assignment = assignments.find((item) => item.userId === user.id && item.isPrimary); const binding = roleBindings.find((item) => user.roleBindingIds.includes(item.id)); return <tr key={user.id}><td><span className="person-cell"><Avatar initials={user.initials} presence={user.presence} /><span><strong>{user.name}</strong><small>{user.title}</small></span></span></td><td>{t(`roles.${binding?.role ?? 'staff'}`)}</td><td>{locations.find((item) => item.id === assignment?.locationId)?.shortName ?? '—'}</td><td>{departments.find((item) => item.id === assignment?.departmentId)?.name ?? '—'}</td><td><StatusBadge tone={binding?.expiresAt ? 'urgent' : 'success'}>{binding?.expiresAt ? t('common.external') : t('common.active')}</StatusBadge></td><td><Button onClick={() => setEditing(user.id)}>{t('admin.manageAssignment')}</Button></td></tr> })}</tbody></table></div>{editing ? <form className="inline-management-form" onSubmit={(event) => { event.preventDefault(); setEditing(null) }}><header><h2>{t('admin.manageAssignment')}</h2><button type="button" aria-label={t('common.close')} onClick={() => setEditing(null)}>×</button></header><label>{t('common.role')}<select defaultValue={roleBindings.find((item) => item.userId === editing)?.role}><option value="staff">{t('roles.staff')}</option><option value="departmentLead">{t('roles.departmentLead')}</option><option value="locationManager">{t('roles.locationManager')}</option><option value="contractor">{t('roles.contractor')}</option></select></label><label>{t('common.location')}<select defaultValue={assignments.find((item) => item.userId === editing)?.locationId}>{locations.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><div><Button onClick={() => setEditing(null)}>{t('common.cancel')}</Button><Button type="submit" variant="primary">{t('common.save')}</Button></div></form> : null}</section>
+  return (
+    <section className="management-section">
+      <div className="section-toolbar">
+        <label className="admin-search"><span className="sr-only">{t('common.search')}</span><input placeholder={`${t('common.search')}…`} /></label>
+        <Button icon={<Plus size={18} />} variant="primary">{t('admin.invitePerson')}</Button>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>{t('nav.people')}</th><th>{t('common.role')}</th><th>{t('common.location')}</th><th>{t('common.department')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead>
+          <tbody>
+            {visibleUsers.map((user) => {
+              const assignment = assignments.find((item) => item.userId === user.id && item.isPrimary)
+              const binding = roleBindings.find((item) => user.roleBindingIds.includes(item.id))
+              return (
+                <tr key={user.id}>
+                  <td data-label={t('nav.people')}><span className="person-cell"><Avatar initials={user.initials} presence={user.presence} /><span><strong>{user.name}</strong><small>{user.title}</small></span></span></td>
+                  <td data-label={t('common.role')}>{t(`roles.${binding?.role ?? 'staff'}`)}</td>
+                  <td data-label={t('common.location')}>{locations.find((item) => item.id === assignment?.locationId)?.shortName ?? '—'}</td>
+                  <td data-label={t('common.department')}>{departments.find((item) => item.id === assignment?.departmentId)?.name ?? '—'}</td>
+                  <td data-label={t('common.status')}><StatusBadge tone={binding?.expiresAt ? 'urgent' : 'success'}>{binding?.expiresAt ? t('common.external') : t('common.active')}</StatusBadge></td>
+                  <td data-label={t('common.actions')}><Button onClick={() => setEditing(user.id)}>{t('admin.manageAssignment')}</Button></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {editing ? <form className="inline-management-form" onSubmit={(event) => { event.preventDefault(); setEditing(null) }}><header><h2>{t('admin.manageAssignment')}</h2><button type="button" aria-label={t('common.close')} onClick={() => setEditing(null)}>×</button></header><label>{t('common.role')}<select defaultValue={roleBindings.find((item) => item.userId === editing)?.role}><option value="staff">{t('roles.staff')}</option><option value="departmentLead">{t('roles.departmentLead')}</option><option value="locationManager">{t('roles.locationManager')}</option><option value="contractor">{t('roles.contractor')}</option></select></label><label>{t('common.location')}<select defaultValue={assignments.find((item) => item.userId === editing)?.locationId}>{locations.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}</select></label><div><Button onClick={() => setEditing(null)}>{t('common.cancel')}</Button><Button type="submit" variant="primary">{t('common.save')}</Button></div></form> : null}
+    </section>
+  )
 }
 
 function ChannelsView() {
   const { t } = useTranslation()
   const { channels, users, locations } = useClinic()
   const [requests, setRequests] = useState(accessRequests)
-  return <div className="governance-layout"><section className="management-section"><div className="section-toolbar"><p>{t('admin.channelDescription')}</p><Button icon={<Plus size={18} />} variant="primary">{t('sidebar.createChannel')}</Button></div><div className="table-wrap"><table><thead><tr><th>{t('admin.channelColumn')}</th><th>{t('common.scope')}</th><th>{t('common.owner')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead><tbody>{channels.map((channel) => <tr key={channel.id}><td><strong># {channel.name}</strong><small>{channel.type} · {channel.visibility}</small></td><td>{channel.locationIds.length > 1 ? t('common.allLocations') : locations.find((location) => location.id === channel.locationIds[0])?.shortName}</td><td>{users.find((user) => user.id === channel.ownerId)?.name}</td><td><StatusBadge tone={channel.isUrgent ? 'urgent' : 'active'}>{channel.archiveAt ? `${t('common.expires')} ${new Date(channel.archiveAt).toLocaleDateString()}` : t('common.active')}</StatusBadge></td><td><Button>{t('common.manage')}</Button></td></tr>)}</tbody></table></div></section><aside className="access-request-panel"><h2>{t('admin.accessRequests')}</h2>{requests.length === 0 ? <p>{t('common.noResults')}</p> : requests.map((request) => <article key={request.id}><strong>{users.find((user) => user.id === request.requesterId)?.name}</strong><p>{request.reason}</p><div><Button onClick={() => setRequests((items) => items.filter((item) => item.id !== request.id))}>{t('admin.deny')}</Button><Button variant="primary" onClick={() => setRequests((items) => items.filter((item) => item.id !== request.id))}>{t('admin.approve')}</Button></div></article>)}</aside></div>
+  return (
+    <div className="governance-layout">
+      <section className="management-section">
+        <div className="section-toolbar"><p>{t('admin.channelDescription')}</p><Button icon={<Plus size={18} />} variant="primary">{t('sidebar.createChannel')}</Button></div>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>{t('admin.channelColumn')}</th><th>{t('common.scope')}</th><th>{t('common.owner')}</th><th>{t('common.status')}</th><th>{t('common.actions')}</th></tr></thead>
+            <tbody>
+              {channels.map((channel) => (
+                <tr key={channel.id}>
+                  <td data-label={t('admin.channelColumn')}><strong># {channel.name}</strong><small>{channel.type} · {channel.visibility}</small></td>
+                  <td data-label={t('common.scope')}>{channel.locationIds.length > 1 ? t('common.allLocations') : locations.find((location) => location.id === channel.locationIds[0])?.shortName}</td>
+                  <td data-label={t('common.owner')}>{users.find((user) => user.id === channel.ownerId)?.name}</td>
+                  <td data-label={t('common.status')}><StatusBadge tone={channel.isUrgent ? 'urgent' : 'active'}>{channel.archiveAt ? `${t('common.expires')} ${new Date(channel.archiveAt).toLocaleDateString()}` : t('common.active')}</StatusBadge></td>
+                  <td data-label={t('common.actions')}><Button>{t('common.manage')}</Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <aside className="access-request-panel"><h2>{t('admin.accessRequests')}</h2>{requests.length === 0 ? <p>{t('common.noResults')}</p> : requests.map((request) => <article key={request.id}><strong>{users.find((user) => user.id === request.requesterId)?.name}</strong><p>{request.reason}</p><div><Button onClick={() => setRequests((items) => items.filter((item) => item.id !== request.id))}>{t('admin.deny')}</Button><Button variant="primary" onClick={() => setRequests((items) => items.filter((item) => item.id !== request.id))}>{t('admin.approve')}</Button></div></article>)}</aside>
+    </div>
+  )
 }
 
 function AnnouncementsView() {

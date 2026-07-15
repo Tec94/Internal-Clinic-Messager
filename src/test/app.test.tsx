@@ -55,6 +55,20 @@ describe('clinic messenger application', () => {
     expect(screen.getByText(/recent channels/i)).toBeInTheDocument()
   })
 
+  it('keeps a personal Zalo integration entry point separate from clinic chat', async () => {
+    const user = userEvent.setup()
+    renderApp('/inbox')
+    const trigger = screen.getByRole('button', { name: 'Open personal Zalo messages' })
+
+    await user.click(trigger)
+
+    const widget = screen.getByRole('dialog', { name: 'Connect your Zalo Official Account' })
+    expect(widget).toBeInTheDocument()
+    expect(within(widget).getByText('Private Zalo inbox chats and personal account messages are not shared with this workspace.')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Connect your Zalo Official Account' })).not.toBeInTheDocument()
+  })
+
   it('keeps regular employees out of owner settings', async () => {
     renderApp('/admin/settings')
     expect(await screen.findByRole('heading', { name: /do not have access/i })).toBeInTheDocument()
@@ -96,6 +110,25 @@ describe('clinic messenger application', () => {
     expect(screen.queryByRole('radiogroup', { name: /appearance/i })).not.toBeInTheDocument()
     expect(document.documentElement).toHaveAttribute('data-theme', 'graphite-indigo')
     expect(localStorage.getItem('clinic-theme')).toBe('graphite-indigo')
+  })
+
+  it('offers the approved mobile destinations and permission-aware More menu', async () => {
+    localStorage.setItem('clinic-persona', 'user-owner')
+    const user = userEvent.setup()
+    renderApp('/inbox')
+    const mobileNavigation = screen.getByRole('navigation', { name: 'Mobile navigation' })
+    expect(within(mobileNavigation).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
+    expect(within(mobileNavigation).getByRole('link', { name: 'Chat' })).toBeInTheDocument()
+    expect(within(mobileNavigation).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
+    expect(within(mobileNavigation).getByRole('link', { name: 'Meetings' })).toBeInTheDocument()
+
+    await user.click(within(mobileNavigation).getByRole('button', { name: 'More' }))
+
+    const moreSheet = screen.getByRole('dialog', { name: 'More' })
+    expect(within(moreSheet).getByRole('link', { name: 'Documents' })).toBeInTheDocument()
+    expect(within(moreSheet).getByRole('link', { name: 'People' })).toBeInTheDocument()
+    expect(within(moreSheet).getByRole('link', { name: 'Admin' })).toBeInTheDocument()
+    expect(within(moreSheet).getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('opens module-specific task search and task details', async () => {

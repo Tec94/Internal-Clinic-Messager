@@ -10,9 +10,23 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "type-check": "tsc -b --pretty false"
+    "type-check": "tsc -b --pretty false",
+    "mobile:sync": "npm run build && cap sync",
+    "mobile:android": "npm run mobile:sync && cap open android",
+    "mobile:ios": "npm run mobile:sync && cap open ios",
+    "mobile:run:android": "npm run build && cap run android",
+    "mobile:run:ios": "npm run build && cap run ios",
+    "mobile:assets": "capacitor-assets generate --ios --android --iconBackgroundColor #555889 --iconBackgroundColorDark #555889 --splashBackgroundColor #f4f4f8 --splashBackgroundColorDark #252533"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@hookform/resolvers": "^5.1.1",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-tabs": "^1.1.12",
@@ -32,6 +46,8 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.4.2",
     "@eslint/js": "^9.28.0",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/vite": "^4.1.10",

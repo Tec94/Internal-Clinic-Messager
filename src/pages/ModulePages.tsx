@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import { NativeExternalLink } from '../components/NativeExternalLink'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
 import type { Meeting } from '../types/domain'
@@ -163,7 +164,7 @@ function MeetingDetail({ meeting }: { meeting: Meeting }) {
   const { channels, users } = useClinic()
   const channel = channels.find((item) => item.id === meeting.channelId)
   const organizer = users.find((item) => item.id === meeting.organizerId)
-  return <section className="meeting-detail"><Video size={24} /><div><span>{t(`meeting.${meeting.provider}`)}</span><h2>{meeting.title}</h2><p className="tabular-nums">{formatDate(meeting.startsAt)}–{formatDate(meeting.endsAt, { hour: 'numeric', minute: '2-digit' })}</p><small>{organizer?.name} · {channel?.displayName} · {meeting.timezone}</small><a className="meeting-detail__url" href={meeting.joinUrl} target="_blank" rel="noreferrer">{formatMeetingUrl(meeting.joinUrl)}</a></div><a className="button button--primary" href={meeting.joinUrl} target="_blank" rel="noreferrer">{t('meeting.join')}</a></section>
+  return <section className="meeting-detail"><Video size={24} /><div><span>{t(`meeting.${meeting.provider}`)}</span><h2>{meeting.title}</h2><p className="tabular-nums">{formatDate(meeting.startsAt)}–{formatDate(meeting.endsAt, { hour: 'numeric', minute: '2-digit' })}</p><small>{organizer?.name} · {channel?.displayName} · {meeting.timezone}</small><NativeExternalLink className="meeting-detail__url" href={meeting.joinUrl}>{formatMeetingUrl(meeting.joinUrl)}</NativeExternalLink></div><NativeExternalLink className="button button--primary" href={meeting.joinUrl}>{t('meeting.join')}</NativeExternalLink></section>
 }
 
 function MeetingSection({ title, meetings, channels, users }: { title: string; meetings: Meeting[]; channels: ReturnType<typeof useAccessibleChannels>; users: ReturnType<typeof useClinic>['users'] }) {

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type PropsWithChildren, type ReactNode } from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, LockKeyhole } from 'lucide-react'
 import type { Channel, Presence } from '../types/domain'
 
@@ -29,17 +29,17 @@ export function Button({
   )
 }
 
-export function IconButton({
+export const IconButton = forwardRef<HTMLButtonElement, PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>>(function IconButton({
   children,
   className = '',
   ...props
-}: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>) {
+}, ref) {
   return (
-    <button type="button" className={`icon-button ${className}`} {...props}>
+    <button ref={ref} type="button" className={`icon-button ${className}`} {...props}>
       {children}
     </button>
   )
-}
+})
 
 export function Avatar({
   initials,

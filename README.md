@@ -44,8 +44,10 @@ agenda. The preview doesn't connect to external calendars or meeting services.
 
 The frontend uses React, TypeScript, Vite, React Router, Tailwind CSS, Radix
 primitives, Lucide icons, TanStack Query, React Hook Form, Zod, and
-`react-i18next`. The application keeps data access behind typed mock services
-and an injectable context boundary.
+`react-i18next`. Capacitor 8 packages the same React application for native
+Android and iOS test builds, so no React Native rewrite is required. The
+application keeps data access behind typed mock services and an injectable
+context boundary.
 
 Read [the product architecture](docs/PRODUCT_ARCHITECTURE.md) for channel
 taxonomy, scoped roles, lifecycle rules, administrative governance, and the
@@ -65,6 +67,36 @@ content. This behavior intentionally warns rather than blocks.
 Staffing screens display imported snapshots with capture times. The product
 doesn't monitor live intake capacity, throughput, or diversion status.
 
+## Zalo chat widget
+
+The bottom-right Zalo entry point is ready for the supported Zalo Official
+Account chat widget. Copy `.env.example` to `.env.local` and set the public
+`VITE_ZALO_OA_ID` value from the Official Account configuration. Restart the
+Vite server after changing the value. You can also set the optional
+`VITE_ZALO_WELCOME_MESSAGE`.
+
+The browser receives only the OA ID and welcome message. Never add an OA access
+token, app secret, or webhook credential to a `VITE_` variable. Keep those on a
+future server-side integration.
+
+Zalo's widget supports conversations between a website visitor and the clinic's
+Official Account. It does not expose private Zalo inbox chats or messages from a
+personal Zalo account to this workspace. Read the
+[Zalo Chat Widget documentation](https://developers.zalo.me/docs/social/zalo-chat-widget)
+before connecting the account.
+
+## Test native builds
+
+The tracked Capacitor projects use the app name `YKSG Messenger`, the app ID
+`com.yksg.messenger`, and the production `dist` directory. Read the
+[mobile testing guide](docs/mobile-testing.md) for Android Studio setup, the
+Mac and Xcode handoff, emulator and device workflows, debug builds, native
+smoke tests, and troubleshooting.
+
+Run `cmd /c npm run mobile:sync` after changing React code. The Android project
+can be opened with `cmd /c npm run mobile:android`; the iOS project must be
+opened on a Mac with `npm run mobile:ios`.
+
 ## Verify the application
 
 Run the local quality checks with these commands:
@@ -75,8 +107,9 @@ Run the local quality checks with these commands:
 - `cmd /c npm run build`
 - `cmd /c npm run test:e2e`
 
-The Playwright suite covers 1280×1024 desktop, 1024×768 compact desktop, and
-768×1024 tablet viewports using the fixed Graphite + Indigo theme.
+The Playwright suite covers 1280×1024 desktop, 1024×768 compact desktop,
+768×1024 tablet, 390×844 phone, 320×568 small phone, and 844×390 touch
+landscape viewports using the fixed Graphite + Indigo theme.
 
 ## Next steps
 
