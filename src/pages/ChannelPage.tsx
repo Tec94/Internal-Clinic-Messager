@@ -193,14 +193,13 @@ export function ChannelPage() {
         <div className="thread-scroll"><MessageThread channel={channel} onAssignTask={openTaskDrawer} /></div>
 
         <div className="composer-region">
-          <small>{t('channel.typing', { name: 'Võ Thành Nam' })}</small>
           <form className={`composer ${urgent ? 'composer--urgent' : ''}`} onSubmit={submitMessage}>
             <IconButton aria-label={t('channel.attachFile')} onClick={() => setAttachmentsOpen((value) => !value)} disabled={!canSend}><Paperclip size={20} /></IconButton>
             <label><span className="sr-only">{t('channel.messagePlaceholder', { channel: channel.name })}</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={canSend ? t('channel.messagePlaceholder', { channel: channel.name }) : t('channel.viewOnly')} rows={1} disabled={!canSend} /></label>
             <div className="composer-tools">
-              <IconButton aria-label="Mention" disabled={!canSend}><AtSign size={18} /></IconButton>
-              <IconButton aria-label="Emoji" disabled={!canSend}><Smile size={18} /></IconButton>
-              <button type="button" className={`urgent-toggle ${urgent ? 'is-active' : ''}`} onClick={() => setUrgent((value) => !value)} aria-pressed={urgent} disabled={!canSend}><AlertCircle size={17} />{t('channel.markUrgent')}</button>
+              <IconButton className="composer-secondary-action" aria-label="Mention" disabled={!canSend}><AtSign size={18} /></IconButton>
+              <IconButton className="composer-secondary-action" aria-label="Emoji" disabled={!canSend}><Smile size={18} /></IconButton>
+              <button type="button" className={`urgent-toggle ${urgent ? 'is-active' : ''}`} onClick={() => setUrgent((value) => !value)} aria-label={t('channel.markUrgent')} aria-pressed={urgent} title={t('channel.markUrgent')} disabled={!canSend}><AlertCircle size={17} /><span>{t('channel.markUrgent')}</span></button>
               <IconButton className="send-button" type="submit" aria-label={t('channel.sendMessage')} disabled={!canSend || sending || (!draft.trim() && composerFiles.length === 0)}><Send size={19} /></IconButton>
             </div>
             {(attachmentsOpen || composerFiles.length > 0) && canSend ? (

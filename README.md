@@ -54,6 +54,10 @@ taxonomy, scoped roles, lifecycle rules, administrative governance, and the
 operational-only data boundary. The original Stitch exports remain unchanged
 under `stitch_clinic_messenger_design_system/` as visual source material.
 
+Read [the production roadmap](docs/PRODUCTION_ROADMAP.md) for the recommended
+database schema, RLS authorization boundary, auth and onboarding flows, PWA
+pilot, and the path from the existing Capacitor wrappers to store releases.
+
 ## Operational-only boundary
 
 The message and channel flows warn when text resembles patient-identifying
