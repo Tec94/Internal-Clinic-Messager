@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { DirectoryPage } from './pages/DirectoryPage'
 import { InboxPage } from './pages/InboxPage'
+import { TodosPage } from './pages/TodosPage'
 
 const AdminPage = lazy(() =>
   import('./pages/AdminPage').then((module) => ({ default: module.AdminPage })),
@@ -33,6 +34,7 @@ export function App() {
           <Route path="/tasks/:taskId?" element={<TasksPage />} />
           <Route path="/documents/:documentId?" element={<DocumentsPage />} />
           <Route path="/meetings/:meetingId?" element={<MeetingsPage />} />
+          <Route path="/todos" element={<TodosPage />} />
           <Route path="/channels/:channelId" element={<ChannelPage />} />
           <Route
             path="/admin/overview"
