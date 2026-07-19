@@ -6,8 +6,10 @@ import './i18n'
 import './styles.css'
 import { App } from './App'
 import { ClinicProvider } from './state/ClinicContext'
-import { AppearanceProvider } from './state/AppearanceContext'
 import { NativePlatformProvider } from './native/NativePlatformContext'
+
+document.documentElement.dataset.theme = 'graphite-indigo'
+localStorage.setItem('clinic-theme', 'graphite-indigo')
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,15 +23,13 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <AppearanceProvider>
-        <BrowserRouter>
-          <NativePlatformProvider>
-            <ClinicProvider>
-              <App />
-            </ClinicProvider>
-          </NativePlatformProvider>
-        </BrowserRouter>
-      </AppearanceProvider>
+      <BrowserRouter>
+        <NativePlatformProvider>
+          <ClinicProvider>
+            <App />
+          </ClinicProvider>
+        </NativePlatformProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,
 )

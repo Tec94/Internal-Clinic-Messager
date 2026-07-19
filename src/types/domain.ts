@@ -282,14 +282,6 @@ export interface Announcement {
   attachmentIds: string[]
 }
 
-export interface AnnouncementReceipt {
-  id: string
-  announcementId: string
-  userId: string
-  deliveredAt: string
-  acknowledgedAt?: string
-}
-
 export interface StaffingSnapshot {
   locationId: string
   capturedAt: string

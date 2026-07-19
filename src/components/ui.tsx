@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes, type PropsWithChildren, type Rea
 import { AlertTriangle, CheckCircle2, Clock3, LockKeyhole } from 'lucide-react'
 import type { Channel, Presence } from '../types/domain'
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type ButtonVariant = 'primary' | 'secondary'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant

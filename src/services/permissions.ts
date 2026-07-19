@@ -53,29 +53,6 @@ export function hasPermission(binding: RoleBinding, permission: Permission) {
   return permissionMap[binding.role].includes(permission)
 }
 
-export function canAccessLocation(binding: RoleBinding, locationId: string) {
-  return (
-    binding.role === 'owner' ||
-    binding.role === 'orgAdmin' ||
-    binding.locationIds.includes(locationId)
-  )
-}
-
-export function canAccessDepartment(
-  binding: RoleBinding,
-  departmentId: string,
-) {
-  return (
-    binding.role === 'owner' ||
-    binding.role === 'orgAdmin' ||
-    binding.departmentIds.includes(departmentId)
-  )
-}
-
-export function getRolePermissions(role: UserRole) {
-  return [...permissionMap[role]]
-}
-
 function isActiveBinding(binding: RoleBinding, now = new Date()) {
   return !binding.expiresAt || new Date(binding.expiresAt) > now
 }

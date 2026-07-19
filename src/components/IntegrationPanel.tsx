@@ -1,4 +1,3 @@
-import * as Tabs from '@radix-ui/react-tabs'
 import { CalendarDays, Check, FileText, ListChecks, Plus, UserRound, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,16 +63,16 @@ export function IntegrationPanel({ channel, initialTab, onClose, onTabChange, on
     <>
       <button className={`integration-scrim ${visible ? 'is-visible' : ''}`} onClick={requestClose} aria-label={t('common.close')} tabIndex={overlay ? 0 : -1} />
       <aside ref={panelRef} className={`integration-panel ${visible ? 'is-visible' : ''}`} aria-label={`${t('channel.tasks')} / ${t('channel.documents')}`} role={overlay ? 'dialog' : 'complementary'} aria-modal={overlay || undefined}>
-        <Tabs.Root value={initialTab} onValueChange={(value) => onTabChange(value as 'tasks' | 'documents')} className="integration-tabs">
+        <div className="integration-tabs">
           <header>
-            <Tabs.List aria-label={t('channel.integrations')}>
-              <Tabs.Trigger value="tasks">{t('channel.tasks')}</Tabs.Trigger>
-              <Tabs.Trigger value="documents">{t('channel.documents')}</Tabs.Trigger>
-            </Tabs.List>
+            <div className="integration-tab-list" aria-label={t('channel.integrations')}>
+              <button className="integration-tab" type="button" aria-pressed={initialTab === 'tasks'} data-state={initialTab === 'tasks' ? 'active' : 'inactive'} onClick={() => onTabChange('tasks')}>{t('channel.tasks')}</button>
+              <button className="integration-tab" type="button" aria-pressed={initialTab === 'documents'} data-state={initialTab === 'documents' ? 'active' : 'inactive'} onClick={() => onTabChange('documents')}>{t('channel.documents')}</button>
+            </div>
             <IconButton onClick={requestClose} aria-label={t('common.close')}><X size={20} /></IconButton>
           </header>
 
-          <Tabs.Content value="tasks" className="integration-content" forceMount hidden={initialTab !== 'tasks'}>
+          {initialTab === 'tasks' ? <section className="integration-content">
             <div className="panel-action-row">
               <Button variant="primary" icon={<Plus size={17} />} onClick={onAssignTask}>{t('task.assignTask')}</Button>
             </div>
@@ -83,14 +82,14 @@ export function IntegrationPanel({ channel, initialTab, onClose, onTabChange, on
             <PanelSection title={t('channel.otherAssignedTasks')} count={otherTasks.length}>
               {otherTasks.length ? otherTasks.map((task) => <TaskCard key={task.id} task={task} users={users} source={channels.find((item) => item.id === task.channelId)?.displayName} />) : <p className="panel-empty-copy">{t('modules.noTasks')}</p>}
             </PanelSection>
-          </Tabs.Content>
+          </section> : null}
 
-          <Tabs.Content value="documents" className="integration-content" forceMount hidden={initialTab !== 'documents'}>
+          {initialTab === 'documents' ? <section className="integration-content">
             <PanelSection icon={<FileText size={18} />} title={t('channel.documentsShared')} count={currentDocuments.length}>
               {currentDocuments.length ? <div className="document-list">{currentDocuments.map((attachment) => <button key={attachment.id}><FileText size={22} /><span><strong>{attachment.name}</strong><small>{attachment.sizeLabel} · {formatDate(attachment.uploadedAt)}</small></span></button>)}</div> : <p className="panel-empty-copy">{t('channel.noChannelDocuments')}</p>}
             </PanelSection>
-          </Tabs.Content>
-        </Tabs.Root>
+          </section> : null}
+        </div>
       </aside>
     </>
   )

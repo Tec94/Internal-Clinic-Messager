@@ -1,20 +1,12 @@
 import {
-  announcements,
-  attachments,
   auditEvents,
-  meetings,
   staffingSnapshots,
-  tasks,
 } from '../data/seed'
 import type {
-  Announcement,
-  Attachment,
   AuditEvent,
-  Meeting,
   MeetingCandidate,
   PolicyWarning,
   StaffingSnapshot,
-  Task,
 } from '../types/domain'
 
 const wait = (duration = 120) =>
@@ -25,25 +17,9 @@ export const clinicService = {
     await wait()
     return staffingSnapshots
   },
-  async getAnnouncements(): Promise<Announcement[]> {
-    await wait()
-    return announcements
-  },
   async getAuditEvents(): Promise<AuditEvent[]> {
     await wait()
     return auditEvents
-  },
-  async getTasks(): Promise<Task[]> {
-    await wait()
-    return tasks
-  },
-  async getAttachments(): Promise<Attachment[]> {
-    await wait()
-    return attachments
-  },
-  async getMeetings(): Promise<Meeting[]> {
-    await wait()
-    return meetings
   },
 }
 

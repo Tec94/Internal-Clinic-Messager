@@ -1,7 +1,6 @@
 import { App as CapacitorApp } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
-import { StatusBar, Style } from '@capacitor/status-bar'
 import {
   type PropsWithChildren,
   useCallback,
@@ -42,13 +41,6 @@ export function NativePlatformProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!isNative) return
 
-    document.documentElement.dataset.nativePlatform = Capacitor.getPlatform()
-    void StatusBar.setOverlaysWebView({ overlay: false })
-    void StatusBar.setStyle({ style: Style.Dark })
-    if (Capacitor.getPlatform() === 'android') {
-      void StatusBar.setBackgroundColor({ color: '#f4f4f8' })
-    }
-
     const listener = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
       const handler = backHandlers.current.at(-1)
       if (handler?.()) return
@@ -64,7 +56,6 @@ export function NativePlatformProvider({ children }: PropsWithChildren) {
     })
 
     return () => {
-      delete document.documentElement.dataset.nativePlatform
       void listener.then((handle) => handle.remove())
     }
   }, [isNative, navigate])

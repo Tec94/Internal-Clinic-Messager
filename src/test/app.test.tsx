@@ -6,22 +6,21 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import i18n from '../i18n'
-import { AppearanceProvider } from '../state/AppearanceContext'
 import { ClinicProvider, useClinic } from '../state/ClinicContext'
 
 function renderApp(path: string) {
+  document.documentElement.dataset.theme = 'graphite-indigo'
+  localStorage.setItem('clinic-theme', 'graphite-indigo')
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AppearanceProvider>
-        <MemoryRouter initialEntries={[path]}>
-          <ClinicProvider>
-            <App />
-          </ClinicProvider>
-        </MemoryRouter>
-      </AppearanceProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <ClinicProvider>
+          <App />
+        </ClinicProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
