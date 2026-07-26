@@ -144,10 +144,12 @@ export interface Attachment {
   uploadedBy: string
   uploadedAt: string
   channelId: string
-  messageId: string
+  messageId?: string
   taskId?: string
   previewUrl?: string
   downloadUrl?: string
+  status?: 'uploading' | 'available' | 'rejected' | 'failed'
+  scanStatus?: 'pending' | 'bypassed_dev' | 'clean' | 'rejected' | 'failed'
 }
 
 export interface Message {
@@ -158,6 +160,7 @@ export interface Message {
   createdAt: string
   isUrgent: boolean
   attachmentIds: string[]
+  attachments?: Attachment[]
   taskId?: string
   meetingId?: string
 }

@@ -20,9 +20,48 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`
 }
 
+function attachmentExtension(file: File) {
+  return file.name.includes('.')
+    ? `.${file.name.split('.').pop()?.toLowerCase()}`
+    : ''
+}
+
+export function resolveAttachmentMimeType(file: File) {
+  const extension = attachmentExtension(file)
+  const inferredMimeType = {
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx':
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx':
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+  }[extension]
+
+  if (!inferredMimeType) {
+    throw new Error(`${file.name} is not a supported file type.`)
+  }
+  if (
+    file.type
+    && file.type !== 'application/octet-stream'
+    && file.type !== inferredMimeType
+  ) {
+    throw new Error(`${file.name} has a filename and MIME type mismatch.`)
+  }
+  return inferredMimeType
+}
+
 function isAcceptedFile(file: File) {
   const extension = file.name.includes('.') ? `.${file.name.split('.').pop()?.toLowerCase()}` : ''
-  return ACCEPTED_ATTACHMENT_TYPES.includes(file.type) || ACCEPTED_ATTACHMENT_EXTENSIONS.includes(extension)
+  if (!ACCEPTED_ATTACHMENT_EXTENSIONS.includes(extension)) return false
+  try {
+    return ACCEPTED_ATTACHMENT_TYPES.includes(resolveAttachmentMimeType(file))
+  } catch {
+    return false
+  }
 }
 
 function createSessionUrl(file: File) {

@@ -2,6 +2,7 @@
 
 import { FileText, UploadCloud, X } from "lucide-react";
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 export type FileUploadItem = {
   id: string;
@@ -9,6 +10,10 @@ export type FileUploadItem = {
   size: number;
   type?: string;
   file?: File;
+  status?: "uploading" | "finalizing" | "complete" | "failed";
+  progress?: number;
+  attachmentId?: string;
+  error?: string;
 };
 
 interface FileUploadProps {
@@ -20,6 +25,8 @@ interface FileUploadProps {
   description?: string;
   browseLabel?: string;
   className?: string;
+  disabled?: boolean;
+  onRemove?: (item: FileUploadItem) => void;
 }
 
 export function FileUpload({
@@ -31,7 +38,10 @@ export function FileUpload({
   description = "Add files to the upload queue",
   browseLabel = "Browse",
   className,
+  disabled = false,
+  onRemove,
 }: FileUploadProps) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const maxReached = maxFiles !== undefined && value.length >= maxFiles;
 
@@ -57,7 +67,7 @@ export function FileUpload({
         type="file"
         accept={accept}
         multiple
-        disabled={maxReached}
+        disabled={maxReached || disabled}
         tabIndex={-1}
         className="sr-only"
         aria-label="Upload files"
@@ -69,7 +79,7 @@ export function FileUpload({
 
       <button
         type="button"
-        disabled={maxReached}
+        disabled={maxReached || disabled}
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {
           event.preventDefault();
@@ -105,11 +115,43 @@ export function FileUpload({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-foreground">{item.name}</span>
                 <span className="text-xs text-muted-foreground">{item.size.toLocaleString()} B</span>
+                {item.status === "uploading" || item.status === "finalizing" ? (
+                  <span className="file-upload-progress">
+                    <progress
+                      max={100}
+                      value={item.progress ?? 0}
+                      aria-label={t("attachment.uploadProgress", {
+                        name: item.name,
+                        progress: item.progress ?? 0,
+                      })}
+                    />
+                    <small>
+                      {item.status === "finalizing"
+                        ? t("attachment.finalizing")
+                        : `${item.progress ?? 0}%`}
+                    </small>
+                  </span>
+                ) : null}
+                {item.status === "failed" && item.error ? (
+                  <small className="field-error" role="alert">{item.error}</small>
+                ) : null}
               </span>
               <button
                 type="button"
-                aria-label={`Remove ${item.name}`}
-                onClick={() => onValueChange(value.filter((entry) => entry.id !== item.id))}
+                aria-label={
+                  item.status === "uploading" || item.status === "finalizing"
+                    ? t("attachment.cancelUpload", { name: item.name })
+                    : `Remove ${item.name}`
+                }
+                disabled={
+                  disabled
+                  && item.status !== "uploading"
+                  && item.status !== "finalizing"
+                }
+                onClick={() => {
+                  onRemove?.(item);
+                  onValueChange(value.filter((entry) => entry.id !== item.id));
+                }}
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X className="h-4 w-4" />

@@ -1,10 +1,44 @@
 import { CheckCircle2, ExternalLink, FileText, ListPlus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
 import i18n from '../i18n'
+import { useNativePlatform } from '../native/useNativePlatform'
 import { useClinic } from '../state/ClinicContext'
-import type { Channel, Meeting } from '../types/domain'
+import { useMessaging, useMessagingThread } from '../state/MessagingContext'
+import type { Attachment, Channel, Meeting } from '../types/domain'
 import { Avatar, Button, StatusBadge } from './ui'
 import { NativeExternalLink } from './NativeExternalLink'
+
+const timeFormatters = {
+  'en-US': new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }),
+  'vi-VN': new Intl.DateTimeFormat('vi-VN', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }),
+}
+const meetingFormatters = {
+  'en-US': new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }),
+  'vi-VN': new Intl.DateTimeFormat('vi-VN', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }),
+}
 
 export function MessageThread({
   channel,
@@ -14,8 +48,25 @@ export function MessageThread({
   onAssignTask?: (messageId?: string, body?: string) => void
 }) {
   const { t } = useTranslation()
-  const { messages, users, currentUser, attachments, tasks, meetings, meetingResponses, respondToMeeting, channels } = useClinic()
-  const channelMessages = messages.filter((message) => message.channelId === channel.id)
+  const { users, attachments, tasks, meetings, meetingResponses, respondToMeeting, channels } = useClinic()
+  const {
+    members,
+    currentMemberId,
+    isProduction,
+    supportsAttachments,
+    supportsIntegrations,
+    downloadAttachment,
+  } = useMessaging()
+  const thread = useMessagingThread(channel.id)
+  const channelMessages = thread.messages
+
+  if (thread.isLoading) {
+    return <div className="empty-thread" role="status">{t('common.loading')}</div>
+  }
+
+  if (thread.error && channelMessages.length === 0) {
+    return <div className="empty-thread" role="alert">{thread.error}</div>
+  }
 
   if (channelMessages.length === 0) {
     return (
@@ -29,47 +80,137 @@ export function MessageThread({
 
   return (
     <div className="message-thread" aria-live="polite">
+      {thread.hasOlderMessages ? (
+        <Button
+          onClick={() => void thread.loadOlderMessages()}
+          disabled={thread.isLoadingOlder}
+        >
+          {thread.isLoadingOlder ? t('common.loading') : t('channel.loadOlder')}
+        </Button>
+      ) : null}
+      {thread.error ? <p className="field-error" role="alert">{thread.error}</p> : null}
       <div className="date-divider"><span>{t('common.today')}</span></div>
       {channelMessages.map((message) => {
-        const author = users.find((user) => user.id === message.authorId) ?? users[0]
-        const isMine = author.id === currentUser.id
-        const messageAttachments = attachments.filter((item) => message.attachmentIds.includes(item.id))
+        const member = members.find(
+          (item) => item.memberId === message.authorId,
+        )
+        const author = member ?? {
+          memberId: message.authorId,
+          fullName: t('channel.formerStaff'),
+          initials: '?',
+          presence: 'offline' as const,
+        }
+        const isMine = author.memberId === currentMemberId
+        const messageAttachments = message.attachments ?? attachments.filter(
+          (item) => message.attachmentIds.includes(item.id),
+        )
         const linkedTask = tasks.find((task) => task.id === message.taskId)
         return (
           <article id={message.id} key={message.id} className={`message ${message.isUrgent ? 'message--urgent' : ''} ${isMine ? 'message--mine' : ''}`}>
             <Avatar initials={author.initials} presence={author.presence} />
             <div className="message__content">
               <header>
-                <strong>{author.name}</strong>
+                <strong>{author.fullName}</strong>
                 <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                 {message.isUrgent ? <StatusBadge tone="urgent">{t('common.urgent')}</StatusBadge> : null}
               </header>
               <div className="message__bubble"><p>{message.body}</p></div>
-              {onAssignTask ? (
+              {supportsIntegrations && onAssignTask ? (
                 <button className="message-action" type="button" onClick={() => onAssignTask(message.id, message.body)}>
                   <ListPlus size={15} aria-hidden="true" />
                   {t('task.assignTask')}
                 </button>
               ) : null}
-              {messageAttachments.map((attachment) => (
-                <NativeExternalLink className="attachment-row" key={attachment.id} href={attachment.downloadUrl ?? attachment.previewUrl} aria-disabled={!attachment.downloadUrl && !attachment.previewUrl}>
-                  <FileText size={20} aria-hidden="true" />
-                  <span><strong>{attachment.name}</strong><small>{attachment.sizeLabel}</small></span>
-                </NativeExternalLink>
-              ))}
-              {linkedTask ? (
-                <button className="linked-task">
+              {supportsAttachments ? messageAttachments.map((attachment) => (
+                <MessageAttachment
+                  attachment={attachment}
+                  isProduction={isProduction}
+                  key={attachment.id}
+                  onDownload={downloadAttachment}
+                />
+              )) : null}
+              {supportsIntegrations && linkedTask ? (
+                <button type="button" className="linked-task">
                   <CheckCircle2 size={19} aria-hidden="true" />
                   <span>{linkedTask.title}</span>
                   <StatusBadge tone={linkedTask.status === 'done' ? 'success' : 'active'}>{t(`common.${linkedTask.status === 'done' ? 'done' : 'open'}`)}</StatusBadge>
                 </button>
               ) : null}
-              {message.meetingId ? <MeetingCard meeting={meetings.find((meeting) => meeting.id === message.meetingId)} response={meetingResponses.find((response) => response.meetingId === message.meetingId && response.userId === currentUser.id)?.status} organizerName={users.find((user) => user.id === meetings.find((meeting) => meeting.id === message.meetingId)?.organizerId)?.name} channelName={channels.find((item) => item.id === message.channelId)?.displayName} onRespond={(status) => respondToMeeting(message.meetingId!, status)} /> : null}
+              {supportsIntegrations && message.meetingId ? <MeetingCard meeting={meetings.find((meeting) => meeting.id === message.meetingId)} response={meetingResponses.find((response) => response.meetingId === message.meetingId && response.userId === currentMemberId)?.status} organizerName={users.find((user) => user.id === meetings.find((meeting) => meeting.id === message.meetingId)?.organizerId)?.name} channelName={channels.find((item) => item.id === message.channelId)?.displayName} onRespond={(status) => respondToMeeting(message.meetingId!, status)} /> : null}
             </div>
           </article>
         )
       })}
     </div>
+  )
+}
+
+function MessageAttachment({
+  attachment,
+  isProduction,
+  onDownload,
+}: {
+  attachment: Attachment
+  isProduction: boolean
+  onDownload: (attachmentId: string) => Promise<string>
+}) {
+  const { t } = useTranslation()
+  const { openExternalUrl } = useNativePlatform()
+  const [downloading, setDownloading] = useState(false)
+  const [error, setError] = useState(false)
+
+  const content = (
+    <>
+      <FileText size={20} aria-hidden="true" />
+      <span>
+        <strong>{attachment.name}</strong>
+        <small>
+          {attachment.sizeLabel}
+          {attachment.scanStatus === 'bypassed_dev'
+            ? ` · ${t('attachment.unscannedDev')}`
+            : ''}
+        </small>
+        {downloading ? <small>{t('attachment.downloading')}</small> : null}
+      </span>
+    </>
+  )
+
+  if (!isProduction) {
+    return (
+      <NativeExternalLink
+        className="attachment-row"
+        href={attachment.downloadUrl ?? attachment.previewUrl}
+        aria-disabled={!attachment.downloadUrl && !attachment.previewUrl}
+      >
+        {content}
+      </NativeExternalLink>
+    )
+  }
+
+  return (
+    <>
+      <button
+        className="attachment-row"
+        type="button"
+        disabled={downloading}
+        aria-label={t('attachment.download', { name: attachment.name })}
+        onClick={() => {
+          setDownloading(true)
+          setError(false)
+          void onDownload(attachment.id)
+            .then(openExternalUrl)
+            .catch(() => setError(true))
+            .finally(() => setDownloading(false))
+        }}
+      >
+        {content}
+      </button>
+      {error ? (
+        <span className="sr-only" role="alert">
+          {t('attachment.downloadFailed')}
+        </span>
+      ) : null}
+    </>
   )
 }
 
@@ -80,15 +221,12 @@ function MeetingCard({ meeting, response, organizerName, channelName, onRespond 
 }
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat(i18n.language, {
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'Asia/Ho_Chi_Minh',
-  }).format(new Date(value))
+  return timeFormatters[activeLocale()].format(new Date(value))
 }
 
 function formatMeetingTime(value: string, timeOnly = false) {
-  return new Intl.DateTimeFormat(i18n.language, timeOnly ? { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' } : { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value))
+  const formatters = timeOnly ? timeFormatters : meetingFormatters
+  return formatters[activeLocale()].format(new Date(value))
 }
 
 function formatMeetingUrl(value: string) {
@@ -98,4 +236,8 @@ function formatMeetingUrl(value: string) {
   } catch {
     return value
   }
+}
+
+function activeLocale(): 'en-US' | 'vi-VN' {
+  return i18n.language === 'vi-VN' ? 'vi-VN' : 'en-US'
 }

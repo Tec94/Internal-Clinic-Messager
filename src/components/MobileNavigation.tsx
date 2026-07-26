@@ -19,7 +19,13 @@ import { useClinic } from '../state/ClinicContext'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { IconButton } from './ui'
 
-export function MobileNavigation({ unreadTotal }: { unreadTotal: number }) {
+export function MobileNavigation({
+  unreadTotal,
+  chatPath,
+}: {
+  unreadTotal: number
+  chatPath: string
+}) {
   const { t } = useTranslation()
   const { hasPermission } = useClinic()
   const location = useLocation()
@@ -34,7 +40,7 @@ export function MobileNavigation({ unreadTotal }: { unreadTotal: number }) {
 
   const primaryItems = [
     { to: '/inbox', label: t('nav.inbox'), icon: LayoutDashboard, active: location.pathname === '/inbox' },
-    { to: '/channels/front-desk-home', label: t('nav.chats'), icon: MessageSquareText, active: location.pathname.startsWith('/channels/'), badge: unreadTotal },
+    { to: chatPath, label: t('nav.chats'), icon: MessageSquareText, active: location.pathname.startsWith('/channels'), badge: unreadTotal },
     { to: '/tasks', label: t('nav.tasks'), icon: ShieldCheck, active: location.pathname.startsWith('/tasks') },
     { to: '/meetings', label: t('nav.meetings'), icon: CalendarDays, active: location.pathname.startsWith('/meetings') },
   ]

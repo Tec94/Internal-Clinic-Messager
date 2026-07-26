@@ -24,6 +24,7 @@ import { FileUpload, type FileUploadItem } from '../components/ui/motion/file-up
 import { detectMeetingCandidate, inspectOperationalContent } from '../services/mockClinicService'
 import { ACCEPTED_ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_FILES } from '../services/uploadAdapter'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
 import type { MeetingCandidate } from '../types/domain'
 import { MeetingConfirmationDialog } from '../components/MeetingConfirmationDialog'
 import { useNativeBackHandler } from '../native/useNativePlatform'
@@ -32,7 +33,17 @@ export function ChannelPage() {
   const { channelId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const { t } = useTranslation()
-  const { channels, locations, sendMessage, createMeeting, canSendMessage, uploadAttachments } = useClinic()
+  const { locations, createMeeting } = useClinic()
+  const {
+    channels,
+    isLoading,
+    error: messagingError,
+    supportsAttachments,
+    supportsIntegrations,
+    canSendMessage,
+    uploadAttachments,
+    sendMessage,
+  } = useMessaging()
   const channel = channels.find((item) => item.id === channelId)
   const [draft, setDraft] = useState('')
   const [urgent, setUrgent] = useState(false)
@@ -46,6 +57,7 @@ export function ChannelPage() {
   const [composerError, setComposerError] = useState('')
   const [sending, setSending] = useState(false)
   const pendingDraft = useRef('')
+  const uploadAbortController = useRef<AbortController | null>(null)
   const panelTrigger = useRef<HTMLButtonElement | null>(null)
   const [meetingCandidate, setMeetingCandidate] = useState<MeetingCandidate | null>(null)
 
@@ -76,7 +88,13 @@ export function ChannelPage() {
     return locations.find((location) => location.id === channel.locationIds[0])?.shortName ?? ''
   }, [channel, locations, t])
 
-  if (!channel) return <Navigate to="/channels/front-desk-home" replace />
+  if (isLoading) {
+    return <div className="route-loading" role="status">{t('common.loading')}</div>
+  }
+  if (messagingError) {
+    return <div className="route-loading" role="alert">{messagingError}</div>
+  }
+  if (!channel) return <Navigate to="/channels" replace />
 
   const canSend = canSendMessage(channel.id)
 
@@ -99,6 +117,10 @@ export function ChannelPage() {
   }
 
   const continueSend = async (body: string) => {
+    if (!supportsIntegrations) {
+      await sendPlainMessage(body)
+      return
+    }
     const candidate = detectMeetingCandidate(body, 'Asia/Ho_Chi_Minh')
     if (candidate) {
       pendingDraft.current = body
@@ -109,9 +131,45 @@ export function ChannelPage() {
   }
 
   const uploadPendingAttachments = async () => {
-    const files = composerFiles.flatMap((item) => item.file ? [item.file] : [])
-    if (files.length === 0) return []
-    return uploadAttachments(files, { kind: 'message', channelId: channel.id })
+    if (!supportsAttachments) return []
+    const pendingItems = composerFiles.filter(
+      (item) => item.file && !item.attachmentId,
+    )
+    if (pendingItems.length === 0) {
+      return composerFiles.flatMap(
+        (item) => item.attachmentId ? [item.attachmentId] : [],
+      )
+    }
+
+    const controller = new AbortController()
+    uploadAbortController.current = controller
+    const uploaded = await uploadAttachments(
+      pendingItems.map((item) => item.file!),
+      channel.id,
+      (file, update) => {
+        setComposerFiles((items) => items.map((item) => (
+          item.file === file
+            ? {
+                ...item,
+                status: update.status,
+                progress: update.percentage,
+                attachmentId: update.attachmentId ?? item.attachmentId,
+                error: update.error,
+              }
+            : item
+        )))
+      },
+      controller.signal,
+    )
+    uploadAbortController.current = null
+
+    const uploadedIds = new Map(
+      pendingItems.map((item, index) => [item.id, uploaded[index]?.id]),
+    )
+    return composerFiles.flatMap((item) => {
+      const attachmentId = item.attachmentId ?? uploadedIds.get(item.id)
+      return attachmentId ? [attachmentId] : []
+    })
   }
 
   const sendPlainMessage = async (body: string) => {
@@ -119,17 +177,19 @@ export function ChannelPage() {
     setSending(true)
     setComposerError('')
     try {
-      const uploaded = await uploadPendingAttachments()
-      sendMessage({
+      const attachmentIds = await uploadPendingAttachments()
+      const sent = await sendMessage({
         channelId: channel.id,
         body: body || t('attachment.messageBody'),
         urgent,
-        attachmentIds: uploaded.map((attachment) => attachment.id),
+        attachmentIds,
       })
+      if (!sent) throw new Error(t('channel.viewOnlyDetail'))
       clearComposer()
     } catch (caught) {
       setComposerError(caught instanceof Error ? caught.message : t('attachment.uploadFailed'))
     } finally {
+      uploadAbortController.current = null
       setSending(false)
     }
   }
@@ -149,7 +209,7 @@ export function ChannelPage() {
   }
 
   const finishMeetingCreate = (input: Parameters<typeof createMeeting>[0]) => {
-    if (!canSend) return
+    if (!canSend || !supportsIntegrations) return
     createMeeting(input)
     clearComposer()
   }
@@ -185,16 +245,16 @@ export function ChannelPage() {
             <button type="button" className="member-count" onClick={() => setMembersOpen(true)} aria-label={t('channel.viewMembers')}><UsersRound size={18} />{memberCount}</button>
             <IconButton aria-label={t('channel.channelInfo')} onClick={() => setMembersOpen(true)}><Info size={20} /></IconButton>
             <label className="channel-search"><Search size={17} /><span className="sr-only">{t('channel.searchPlaceholder')}</span><input placeholder={t('channel.searchPlaceholder')} /></label>
-            <IconButton className={activePanel === 'tasks' ? 'is-active' : ''} aria-label={t('channel.openTasks')} aria-pressed={activePanel === 'tasks'} onClick={(event) => openPanel('tasks', event.currentTarget)}><ListChecks size={20} /></IconButton>
-            <IconButton className={activePanel === 'documents' ? 'is-active' : ''} aria-label={t('channel.openDocuments')} aria-pressed={activePanel === 'documents'} onClick={(event) => openPanel('documents', event.currentTarget)}><FileText size={20} /></IconButton>
+            {supportsIntegrations ? <IconButton className={activePanel === 'tasks' ? 'is-active' : ''} aria-label={t('channel.openTasks')} aria-pressed={activePanel === 'tasks'} onClick={(event) => openPanel('tasks', event.currentTarget)}><ListChecks size={20} /></IconButton> : null}
+            {supportsIntegrations ? <IconButton className={activePanel === 'documents' ? 'is-active' : ''} aria-label={t('channel.openDocuments')} aria-pressed={activePanel === 'documents'} onClick={(event) => openPanel('documents', event.currentTarget)}><FileText size={20} /></IconButton> : null}
           </div>
         </header>
 
-        <div className="thread-scroll"><MessageThread channel={channel} onAssignTask={openTaskDrawer} /></div>
+        <div className="thread-scroll"><MessageThread channel={channel} onAssignTask={supportsIntegrations ? openTaskDrawer : undefined} /></div>
 
         <div className="composer-region">
           <form className={`composer ${urgent ? 'composer--urgent' : ''}`} onSubmit={submitMessage}>
-            <IconButton aria-label={t('channel.attachFile')} onClick={() => setAttachmentsOpen((value) => !value)} disabled={!canSend}><Paperclip size={20} /></IconButton>
+            {supportsAttachments ? <IconButton aria-label={t('channel.attachFile')} onClick={() => setAttachmentsOpen((value) => !value)} disabled={!canSend}><Paperclip size={20} /></IconButton> : null}
             <label><span className="sr-only">{t('channel.messagePlaceholder', { channel: channel.name })}</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={canSend ? t('channel.messagePlaceholder', { channel: channel.name }) : t('channel.viewOnly')} rows={1} disabled={!canSend} /></label>
             <div className="composer-tools">
               <IconButton className="composer-secondary-action" aria-label="Mention" disabled={!canSend}><AtSign size={18} /></IconButton>
@@ -202,7 +262,7 @@ export function ChannelPage() {
               <button type="button" className={`urgent-toggle ${urgent ? 'is-active' : ''}`} onClick={() => setUrgent((value) => !value)} aria-label={t('channel.markUrgent')} aria-pressed={urgent} title={t('channel.markUrgent')} disabled={!canSend}><AlertCircle size={17} /><span>{t('channel.markUrgent')}</span></button>
               <IconButton className="send-button" type="submit" aria-label={t('channel.sendMessage')} disabled={!canSend || sending || (!draft.trim() && composerFiles.length === 0)}><Send size={19} /></IconButton>
             </div>
-            {(attachmentsOpen || composerFiles.length > 0) && canSend ? (
+            {supportsAttachments && (attachmentsOpen || composerFiles.length > 0) && canSend ? (
               <div className="composer-upload">
                 <FileUpload
                   value={composerFiles}
@@ -213,6 +273,15 @@ export function ChannelPage() {
                   description={t('attachment.dropDescription')}
                   browseLabel={t('attachment.browse')}
                   className="yksg-file-upload yksg-file-upload--compact"
+                  disabled={sending}
+                  onRemove={(item) => {
+                    if (
+                      item.status === 'uploading'
+                      || item.status === 'finalizing'
+                    ) {
+                      uploadAbortController.current?.abort()
+                    }
+                  }}
                 />
               </div>
             ) : null}
@@ -222,12 +291,12 @@ export function ChannelPage() {
         </div>
       </section>
 
-      {activePanel ? <IntegrationPanel channel={channel} initialTab={activePanel} onClose={closePanel} onTabChange={(panel) => setSearchParams({ panel })} onAssignTask={() => openTaskDrawer()} /> : null}
+      {supportsIntegrations && activePanel ? <IntegrationPanel channel={channel} initialTab={activePanel} onClose={closePanel} onTabChange={(panel) => setSearchParams({ panel })} onAssignTask={() => openTaskDrawer()} /> : null}
 
-      {meetingCandidate ? <MeetingConfirmationDialog key={meetingCandidate.joinUrl} channelId={channel.id} channelName={channel.displayName} body={pendingDraft.current} candidate={meetingCandidate} onCancel={() => setMeetingCandidate(null)} onSendPlain={() => { void sendPlainMessage(pendingDraft.current) }} onCreate={finishMeetingCreate} /> : null}
+      {supportsIntegrations && meetingCandidate ? <MeetingConfirmationDialog key={meetingCandidate.joinUrl} channelId={channel.id} channelName={channel.displayName} body={pendingDraft.current} candidate={meetingCandidate} onCancel={() => setMeetingCandidate(null)} onSendPlain={() => { void sendPlainMessage(pendingDraft.current) }} onCreate={finishMeetingCreate} /> : null}
 
       <ChannelMembersDrawer channel={channel} open={membersOpen} onOpenChange={setMembersOpen} />
-      <TaskAssignmentDrawer channel={channel} open={taskDrawerOpen} sourceMessageId={taskSourceMessageId} sourceText={taskSourceText} onOpenChange={closeTaskDrawer} />
+      {supportsIntegrations ? <TaskAssignmentDrawer channel={channel} open={taskDrawerOpen} sourceMessageId={taskSourceMessageId} sourceText={taskSourceText} onOpenChange={closeTaskDrawer} /> : null}
 
       <Dialog.Root open={showWarning} onOpenChange={setShowWarning}>
         <Dialog.Portal>

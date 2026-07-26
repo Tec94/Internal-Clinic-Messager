@@ -4,9 +4,14 @@ YKSG is a role-aware communication frontend for Phòng Khám Y Khoa Sài Gòn. I
 combines a low-noise, three-pane workspace with chat, tasks, documents,
 meetings, people, announcements, and scoped administration.
 
-> **Note:** This is a preview frontend with synthetic data. It does not provide
-> authentication, durable storage, realtime transport, clinical messaging, or
-> a regulatory compliance control.
+> **Note:** This remains a preview application. The repository now includes a
+> local Supabase identity, onboarding, core messaging, private message
+> attachments, RLS, and Realtime slice. Authenticated Chat and Inbox use those
+> repository boundaries. Unfinished modules and the non-authenticated preview
+> still use synthetic data. The six tracked migrations are deployed to the
+> user-designated development backend, but real hosted staff-session testing
+> is incomplete. This is not production clinical messaging or a regulatory
+> compliance control.
 
 ## Run the application
 
@@ -46,8 +51,11 @@ The frontend uses React, TypeScript, Vite, React Router, Tailwind CSS, Radix
 primitives, Lucide icons, TanStack Query, React Hook Form, Zod, and
 `react-i18next`. Capacitor 8 packages the same React application for native
 Android and iOS test builds, so no React Native rewrite is required. The
-application keeps data access behind typed mock services and an injectable
-context boundary.
+authenticated shell uses Supabase session and membership state. Authenticated
+Chat and Inbox use a tested TanStack Query boundary for authorized channels,
+member profiles, paginated messages, sends, Realtime updates, resumable private
+attachments, and short-lived downloads. Preview and unfinished modules retain
+`ClinicProvider` data.
 
 Read [the product architecture](docs/PRODUCT_ARCHITECTURE.md) for channel
 taxonomy, scoped roles, lifecycle rules, administrative governance, and the
@@ -89,6 +97,36 @@ personal Zalo account to this workspace. Read the
 [Zalo Chat Widget documentation](https://developers.zalo.me/docs/social/zalo-chat-widget)
 before connecting the account.
 
+## Development MFA bypass
+
+The development auth path supports an expiring, per-user MFA bypass. The
+browser uses it only when `VITE_ENABLE_MFA_BYPASS=true`, and the database
+authorizes it only when that user has an unexpired row in the private bypass
+allowlist. The app displays a persistent development warning while the bypass
+is active.
+
+The repository keeps the client flag off by default. This checkout enables it
+in the ignored `.env.local` file. The connected development backend currently
+allowlists its sole test identity until August 2, 2026 at 09:50 UTC. Bypass
+entries can't last longer than seven days, record first use per Auth session,
+and don't grant access to suspended, expired, outsider, or cross-tenant users.
+
+> **Warning:** Never add a bypass row or enable
+> `VITE_ENABLE_MFA_BYPASS` in staging or production. Delete the private
+> allowlist row to revoke the exception immediately.
+
+## Private development attachments
+
+Authenticated message attachments use private quarantine and available
+Storage buckets. Keep `VITE_ENABLE_ATTACHMENTS=false` until the target backend
+has both buckets, the attachment migration, and both Edge Functions.
+
+For the disposable hosted development project, set the server-only Edge
+Function secret `ATTACHMENT_SCAN_MODE=dev_bypass`, complete a real AAL2 upload
+and download test, and then set `VITE_ENABLE_ATTACHMENTS=true` in that
+development client. Never use `dev_bypass` in staging or production. Those
+environments require an approved malware scanner.
+
 ## Test native builds
 
 The tracked Capacitor projects use the app name `YKSG Messenger`, the app ID
@@ -108,8 +146,15 @@ Run the local quality checks with these commands:
 - `cmd /c npm run type-check`
 - `cmd /c npm run lint`
 - `cmd /c npm test`
+- `cmd /c npm run test:supabase`
 - `cmd /c npm run build`
 - `cmd /c npm run test:e2e`
+
+The Supabase test command requires Docker and the local stack from
+`cmd /c npx supabase start`. It runs pgTAP RLS tests, restores a real local
+AAL2 session, verifies Realtime delivery, starts the local Edge Functions, and
+proves a resumable seven MiB quarantine upload, development promotion, atomic
+message linkage, signed download, and cleanup.
 
 The Playwright suite covers 1280×1024 desktop, 1024×768 compact desktop,
 768×1024 tablet, 390×844 phone, 320×568 small phone, and 844×390 touch
@@ -117,7 +162,11 @@ landscape viewports using the fixed Graphite + Indigo theme.
 
 ## Next steps
 
-The next implementation phase can replace the mock services with authenticated
-backend adapters, realtime messaging, managed object storage, staff-directory
-sync, calendar integrations, and an external scheduling integration. Every
-backend must independently enforce the frontend permission matrix.
+Configure the development-only attachment scan-mode secret, create approved
+synthetic development users through the Auth Admin API, and run hosted sign-in,
+TOTP AAL2, onboarding, Realtime, and attachment checks. Leaked-password
+protection remains a deferred Free-plan limitation. Durable Tasks,
+staff-directory sync, malware scanning, calendar integrations, and the external
+scheduling integration remain after that boundary. Every backend must
+independently enforce the frontend permission
+matrix.

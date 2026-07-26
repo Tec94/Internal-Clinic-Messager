@@ -1,9 +1,11 @@
-import { ChevronDown, Languages, LockKeyhole, Plus, Search, X } from 'lucide-react'
+import { ChevronDown, Languages, LockKeyhole, LogOut, Plus, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import i18n from '../i18n'
+import { useAuth } from '../state/AuthContext'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
 import type { Channel, ChannelType } from '../types/domain'
 import { Avatar, Button, ChannelGlyph, IconButton } from './ui'
 import { ModuleSidebar, type ModuleSidebarMode } from './ModuleSidebar'
@@ -12,6 +14,7 @@ interface WorkspaceSidebarProps {
   open: boolean
   onClose: () => void
   onCreateChannel: () => void
+  authEnabled?: boolean
 }
 
 const adminLinks = [
@@ -26,12 +29,16 @@ const adminLinks = [
   ['settings', 'admin.settings'],
 ] as const
 
-export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({
+  open,
+  onClose,
+  onCreateChannel,
+  authEnabled = false,
+}: WorkspaceSidebarProps) {
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const {
-    channels,
     users,
     currentUser,
     currentBinding,
@@ -42,6 +49,13 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
     roleBindings,
     ensureDirectChannel,
   } = useClinic()
+  const {
+    channels,
+    isProduction,
+    isLoading: messagingLoading,
+    error: messagingError,
+    supportsChannelCreation,
+  } = useMessaging()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'unread' | 'mentions' | 'urgent'>('all')
   const isAdmin = location.pathname.startsWith('/admin')
@@ -67,15 +81,50 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
       const inLocation = currentLocationId === 'all' || channel.locationIds.includes(currentLocationId)
       const matchesQuery = `${channel.name} ${channel.displayName}`.toLowerCase().includes(query.toLowerCase())
       const matchesFilter = filter === 'all' || (filter === 'unread' && channel.unreadCount > 0) || (filter === 'urgent' && channel.isUrgent) || filter === 'mentions'
-      return (roleCanSeeAll || isMember || channel.visibility === 'public') && inLocation && matchesQuery && matchesFilter
+      const canView = (
+        isProduction
+        || roleCanSeeAll
+        || isMember
+        || channel.visibility === 'public'
+      )
+      return (
+        canView
+        && (isProduction || inLocation)
+        && matchesQuery
+        && matchesFilter
+      )
     })
     return allowed
-  }, [channels, currentBinding.role, currentLocationId, currentUser.id, filter, query])
+  }, [
+    channels,
+    currentBinding.role,
+    currentLocationId,
+    currentUser.id,
+    filter,
+    isProduction,
+    query,
+  ])
 
-  const groups: Array<{ title: string; types: ChannelType[] }> = [
-    { title: t('sidebar.myDepartment'), types: ['department'] },
-    { title: t('sidebar.crossDepartment'), types: ['interface', 'project', 'incident'] },
-    { title: t('sidebar.announcements'), types: ['announcement', 'leadership', 'location'] },
+  const bindingLocationIds = useMemo(
+    () => new Set(currentBinding.locationIds),
+    [currentBinding.locationIds],
+  )
+  const directChannels = useMemo(
+    () => visibleChannels.filter((channel) => channel.type === 'direct'),
+    [visibleChannels],
+  )
+  const availableLocations = useMemo(
+    () => locations.filter((item) => bindingLocationIds.has(item.id)),
+    [bindingLocationIds, locations],
+  )
+  const otherUsers = useMemo(
+    () => users.filter((user) => user.id !== currentUser.id),
+    [currentUser.id, users],
+  )
+  const groups: Array<{ title: string; types: ReadonlySet<ChannelType> }> = [
+    { title: t('sidebar.myDepartment'), types: new Set(['department']) },
+    { title: t('sidebar.crossDepartment'), types: new Set(['interface', 'project', 'incident']) },
+    { title: t('sidebar.announcements'), types: new Set(['announcement', 'leadership', 'location']) },
   ]
 
   const openDirectMessage = (userId: string) => {
@@ -90,16 +139,20 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
       <header className="workspace-header">
         <div>
           <strong>{t('app.name')}</strong>
-          <select
-            aria-label={t('common.location')}
-            value={currentLocationId}
-            onChange={(event) => setCurrentLocationId(event.target.value)}
-          >
-            {(currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') ? <option value="all">{t('common.allLocations')}</option> : null}
-            {locations.filter((item) => currentBinding.locationIds.includes(item.id)).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
-          </select>
+          {isProduction ? (
+            <span>{t('common.allLocations')}</span>
+          ) : (
+            <select
+              aria-label={t('common.location')}
+              value={currentLocationId}
+              onChange={(event) => setCurrentLocationId(event.target.value)}
+            >
+              {(currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') ? <option value="all">{t('common.allLocations')}</option> : null}
+              {availableLocations.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
+            </select>
+          )}
         </div>
-        <ChevronDown size={18} aria-hidden="true" />
+        {!isProduction ? <ChevronDown size={18} aria-hidden="true" /> : null}
         <IconButton className="sidebar-close" onClick={onClose} aria-label={t('common.close')}><X size={20} /></IconButton>
       </header>
 
@@ -121,7 +174,7 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
         <>
           <div className="sidebar-tabs" role="group" aria-label={t('nav.inbox')}>
             {(['all', 'unread', 'mentions', 'urgent'] as const).map((item) => (
-              <button key={item} aria-pressed={filter === item} className={filter === item ? 'is-active' : ''} onClick={() => setFilter(item)}>
+              <button type="button" key={item} aria-pressed={filter === item} className={filter === item ? 'is-active' : ''} onClick={() => setFilter(item)}>
                 {t(`common.${item === 'all' ? 'all' : item}`)}
               </button>
             ))}
@@ -132,8 +185,10 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('sidebar.searchPlaceholder')} />
           </label>
           <div className="channel-scroll-region">
+            {messagingLoading ? <p>{t('common.loading')}</p> : null}
+            {messagingError ? <p role="alert">{messagingError}</p> : null}
             {groups.map((group) => {
-              const items = visibleChannels.filter((channel) => group.types.includes(channel.type))
+              const items = visibleChannels.filter((channel) => group.types.has(channel.type))
               if (items.length === 0) return null
               return (
                 <section className="channel-group" key={group.title}>
@@ -147,41 +202,67 @@ export function WorkspaceSidebar({ open, onClose, onCreateChannel }: WorkspaceSi
             <section className="channel-group">
               <h2>{t('sidebar.directMessages')}</h2>
               <div className="channel-group__list">
-                {users.filter((user) => user.id !== currentUser.id).map((user) => (
-                  <button key={user.id} className="direct-message-row" onClick={() => openDirectMessage(user.id)}>
-                    <Avatar initials={user.initials} presence={user.presence} size="small" />
-                    <span>{user.name}</span>
-                  </button>
-                ))}
+                {isProduction
+                  ? directChannels.map((channel) => (
+                        <ChannelLink
+                          key={channel.id}
+                          channel={channel}
+                          onSelect={onClose}
+                        />
+                      ))
+                  : otherUsers.map((user) => (
+                      <button type="button" key={user.id} className="direct-message-row" onClick={() => openDirectMessage(user.id)}>
+                        <Avatar initials={user.initials} presence={user.presence} size="small" />
+                        <span>{user.name}</span>
+                      </button>
+                    ))}
               </div>
             </section>
+            {!messagingLoading && !messagingError && visibleChannels.length === 0
+              ? <p>{t('common.noResults')}</p>
+              : null}
           </div>
-          <div className="sidebar-create">
+          {supportsChannelCreation ? <div className="sidebar-create">
             <Button icon={<Plus size={18} />} onClick={onCreateChannel}>{t('sidebar.createChannel')}</Button>
-          </div>
+          </div> : null}
         </>
       )}
 
       <footer className="workspace-footer">
-        <label>
-          <span>{t('common.role')}</span>
-          <select value={currentUser.id} onChange={(event) => setCurrentUserId(event.target.value)}>
-            {users.map((user) => {
-              const role = roleBindings.find((binding) => user.roleBindingIds.includes(binding.id))?.role ?? 'staff'
-              return <option key={user.id} value={user.id}>{user.name} — {t(`roles.${role}`)}</option>
-            })}
-          </select>
-        </label>
+        {authEnabled ? <AuthenticatedAccount /> : (
+          <label>
+            <span>{t('common.role')}</span>
+            <select value={currentUser.id} onChange={(event) => setCurrentUserId(event.target.value)}>
+              {users.map((user) => {
+                const role = roleBindings.find((binding) => user.roleBindingIds.includes(binding.id))?.role ?? 'staff'
+                return <option key={user.id} value={user.id}>{user.name} — {t(`roles.${role}`)}</option>
+              })}
+            </select>
+          </label>
+        )}
         <div className="sidebar-language">
           <span>{t('common.language')}</span>
           <div className="language-switcher" aria-label={t('common.language')}>
             <Languages size={17} aria-hidden="true" />
-            <button className={i18n.language === 'en-US' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('en-US')} aria-pressed={i18n.language === 'en-US'}>EN</button>
-            <button className={i18n.language === 'vi-VN' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('vi-VN')} aria-pressed={i18n.language === 'vi-VN'}>VI</button>
+            <button type="button" className={i18n.language === 'en-US' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('en-US')} aria-pressed={i18n.language === 'en-US'}>EN</button>
+            <button type="button" className={i18n.language === 'vi-VN' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('vi-VN')} aria-pressed={i18n.language === 'vi-VN'}>VI</button>
           </div>
         </div>
       </footer>
     </aside>
+  )
+}
+
+function AuthenticatedAccount() {
+  const { t } = useTranslation()
+  const { session, signOut } = useAuth()
+  return (
+    <div className="authenticated-account">
+      <span>{session?.user.email}</span>
+      <Button icon={<LogOut size={17} />} onClick={() => void signOut()}>
+        {t('auth.signOut')}
+      </Button>
+    </div>
   )
 }
 

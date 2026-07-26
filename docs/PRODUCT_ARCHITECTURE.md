@@ -7,8 +7,12 @@ staffing snapshots, safety warnings, and audit metadata.
 
 ## Assumptions stated upfront
 
-The initial frontend uses synthetic data so the architecture can be validated
-without connecting to clinic systems.
+The preview workspace uses synthetic data so the architecture can be validated
+without connecting to clinic systems. Local and hosted development Supabase
+slices implement identity, assignments, scoped roles, onboarding, core
+messaging, private message attachments, audit metadata, RLS, and Realtime.
+Authenticated Chat and Inbox consume those boundaries; unfinished modules
+remain preview-only until their database boundaries exist.
 
 - YKSG is the short name for Phòng Khám Y Khoa Sài Gòn.
 - Both synthetic locations use `Asia/Ho_Chi_Minh`.
@@ -20,8 +24,84 @@ without connecting to clinic systems.
 - The product doesn't monitor live intake capacity, diversion, or throughput.
 - The product does not handle patient health information or clinical exchange.
 - An external scheduler remains the system of record for shifts.
-- The frontend permission model describes presentation behavior. A future
-  backend must enforce every authorization rule independently.
+- The frontend permission model describes presentation behavior. The
+  implemented database policies enforce the current identity and core
+  messaging rules independently; every future module must do the same before
+  its production UI is enabled.
+
+## Current implementation boundary
+
+The architecture is split between a tested local production path and the
+synthetic preview path. This distinction prevents preview behavior from being
+mistaken for durable or hosted behavior.
+
+- The local backend includes organizations, profiles, memberships, locations,
+  departments, assignments, scoped roles, invitations, onboarding, channels,
+  channel memberships, messages, receipts, and metadata-only audit events.
+- The authentication shell requires TOTP AAL2, checks active, suspended, and
+  expired membership states, and completes onboarding transactionally. An
+  expiring, per-user exception supports development testing only.
+- The Supabase messaging repository supports scoped channel discovery,
+  keyset-paginated reads, idempotent sends, and authorized Realtime updates.
+- The attachment repository initializes opaque metadata, uploads resumable
+  files to a private quarantine bucket, invokes trusted promotion, links only
+  available attachments, and requests short-lived signed downloads.
+- `MessagingProvider` joins authorized channels and member profiles, drives
+  Chat and Inbox through TanStack Query, and deduplicates sent and Realtime
+  messages in the query cache.
+- Preview Chat and Inbox retain `ClinicProvider` data. People, Tasks,
+  Documents, Meetings, and Admin remain synthetic preview modules. Durable
+  attachments currently belong only to authenticated chat messages.
+- The four repository migrations are verified locally and deployed to the
+  user-designated hosted development backend. All 20 public tables have RLS,
+  and hosted transactional smoke checks cover sender, view-only, outsider,
+  idempotency, and AAL1 behavior without retaining synthetic rows.
+- The hosted development project has two private 10 MiB buckets and two active
+  JWT-verifying Edge Functions. The client feature remains off until the
+  development scan-mode secret and hosted real-session checks are complete.
+- Real hosted Auth sessions, TOTP enrollment, and Realtime delivery still need
+  approved synthetic development identities and Auth Admin API access.
+- Tasks, task attachments, announcements, access requests, notifications,
+  meetings, a production malware scanner, and lifecycle automation remain
+  target architecture until their database contracts and RLS tests exist.
+
+## Attachment security boundary
+
+Private message attachments use a two-bucket pipeline so unverified uploads
+never share the same access path as available files.
+
+- Both buckets are private, limited to 10 MiB, and restricted to PDF, Word,
+  Excel, PNG, and JPEG MIME types.
+- Active AAL2 senders can upload only the opaque quarantine path issued by the
+  database. Clients cannot read quarantine or write to the available bucket.
+- A JWT-verifying Edge Function rechecks authorization and stored object
+  metadata before moving a file between buckets.
+- `dev_bypass` is explicit development configuration. It records an audit
+  event and labels the file “Unscanned — development only.”
+- Any other scan mode fails closed. Staging and production require an approved
+  malware scanner before promotion or download.
+- Downloads require current channel read access and use a 60-second signed URL.
+
+## Development authentication boundary
+
+MFA remains the default identity requirement. Development testing can use a
+short-lived exception without changing Supabase JWT claims or making the
+frontend the authorization source.
+
+- The browser requests the exception only when
+  `VITE_ENABLE_MFA_BYPASS=true`.
+- The database permits AAL1 only for a user in the private, server-managed
+  allowlist with an expiry in the future.
+- Each bypass lasts no more than seven days, and first use is recorded once per
+  Auth session in a private event ledger.
+- Restrictive RLS, tenant membership, channel access, suspension, expiry, and
+  sender checks continue to apply.
+- The authenticated shell displays a persistent development warning and
+  returns to MFA when the bypass expires.
+
+Staging and production must contain no bypass entries and must keep the client
+flag disabled.
+  The database never stores a permanent public URL.
 
 ## Department and location taxonomy
 
@@ -93,8 +173,8 @@ Cross-department work uses the narrowest space that can complete the job.
 
 For example, a Front Desk lead creates a 24-hour interface channel for a
 same-day scheduling conflict. The lead selects Front Desk and Nursing, chooses
-Cơ sở Trung tâm, states the operational purpose, and avoids patient details. A task
-captures the schedule update, while the channel retains the coordination
+Cơ sở Trung tâm, states the operational purpose, and avoids patient details. A
+task captures the schedule update, while the channel retains the coordination
 record and archives after resolution.
 
 ## Roles, access, and lifecycle rules
@@ -113,7 +193,9 @@ assignment for defaults.
 | Contractor / locum | Explicit, expiring assignments | Invited channels only; no administrative access |
 | IT support | Organization metadata | Channel metadata and safety audit access; no ambient message-content access |
 
-Lifecycle automation prevents membership drift:
+The target lifecycle automation must prevent membership drift. The current
+database enforces assignment expiry during access checks, but it doesn't yet
+derive every membership or complete transfers and offboarding automatically:
 
 1. Onboarding creates assignments and role bindings, then derives department
    and location memberships.
@@ -164,7 +246,9 @@ across chat, modules, drawers, and dialogs.
 ## Administrative governance and control plane
 
 The Admin Center uses the same shell as messaging so managers retain location
-context and do not move into a disconnected product.
+context and do not move into a disconnected product. These controls remain
+synthetic preview workflows except for the underlying identity, scoped-role,
+channel, and audit foundations described above.
 
 - **Overview** surfaces timestamped staffing snapshots, pending access
   requests, channel governance items, and current announcements.
@@ -212,8 +296,9 @@ Chat contains discussion and decisions. Tasks contain accountable work.
 - A message can create or link a task with an owner, due time, checklist, and
   source channel.
 - Task completion posts a status event back into the channel.
-- Documents remain first-class objects with uploader, timestamp, and linked
-  task/channel metadata.
+- Durable message attachments are first-class objects with uploader, timestamp,
+  channel, scan state, and message linkage. Task attachment linkage waits for
+  durable task tables.
 - Google Meet and Zoom links can become structured meeting invitations after
   the sender confirms the title, start, end, and time zone.
 - The organizer is accepted automatically. Other channel members can accept or
@@ -237,8 +322,10 @@ enforce regulatory compliance.
   not hard-block sending.
 - Audit events store the warning rule, actor, time, and scope, not the flagged
   message content.
-- File scanning and content classification remain future integrations requiring
-  legal, privacy, security, and compliance review.
+- Development attachment promotion is visibly unscanned and audit-recorded.
+  Malware scanning and content classification remain required integrations
+  before staging or production and require legal, privacy, security, and
+  compliance review.
 
 ## Scalability stress test
 
