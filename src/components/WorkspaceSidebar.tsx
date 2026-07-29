@@ -1,12 +1,12 @@
-import { ChevronDown, Languages, LockKeyhole, LogOut, Plus, Search, X } from 'lucide-react'
+import { LockKeyhole, LogOut, Plus, Search, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import i18n from '../i18n'
 import { useAuth } from '../state/AuthContext'
 import { useClinic } from '../state/ClinicContext'
 import { useMessaging } from '../state/MessagingContext'
 import type { Channel, ChannelType } from '../types/domain'
+import { AppSelect } from './AppSelect'
 import { Avatar, Button, ChannelGlyph, IconButton } from './ui'
 import { ModuleSidebar, type ModuleSidebarMode } from './ModuleSidebar'
 
@@ -45,8 +45,6 @@ export function WorkspaceSidebar({
     currentLocationId,
     locations,
     setCurrentLocationId,
-    setCurrentUserId,
-    roleBindings,
     ensureDirectChannel,
   } = useClinic()
   const {
@@ -142,17 +140,22 @@ export function WorkspaceSidebar({
           {isProduction ? (
             <span>{t('common.allLocations')}</span>
           ) : (
-            <select
-              aria-label={t('common.location')}
+            <AppSelect
+              ariaLabel={t('common.location')}
               value={currentLocationId}
-              onChange={(event) => setCurrentLocationId(event.target.value)}
-            >
-              {(currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') ? <option value="all">{t('common.allLocations')}</option> : null}
-              {availableLocations.map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
-            </select>
+              onValueChange={setCurrentLocationId}
+              options={[
+                ...((currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin')
+                  ? [{ value: 'all', label: t('common.allLocations') }]
+                  : []),
+                ...availableLocations.map((item) => ({
+                  value: item.id,
+                  label: item.shortName,
+                })),
+              ]}
+            />
           )}
         </div>
-        {!isProduction ? <ChevronDown size={18} aria-hidden="true" /> : null}
         <IconButton className="sidebar-close" onClick={onClose} aria-label={t('common.close')}><X size={20} /></IconButton>
       </header>
 
@@ -228,27 +231,11 @@ export function WorkspaceSidebar({
         </>
       )}
 
-      <footer className="workspace-footer">
-        {authEnabled ? <AuthenticatedAccount /> : (
-          <label>
-            <span>{t('common.role')}</span>
-            <select value={currentUser.id} onChange={(event) => setCurrentUserId(event.target.value)}>
-              {users.map((user) => {
-                const role = roleBindings.find((binding) => user.roleBindingIds.includes(binding.id))?.role ?? 'staff'
-                return <option key={user.id} value={user.id}>{user.name} — {t(`roles.${role}`)}</option>
-              })}
-            </select>
-          </label>
-        )}
-        <div className="sidebar-language">
-          <span>{t('common.language')}</span>
-          <div className="language-switcher" aria-label={t('common.language')}>
-            <Languages size={17} aria-hidden="true" />
-            <button type="button" className={i18n.language === 'en-US' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('en-US')} aria-pressed={i18n.language === 'en-US'}>EN</button>
-            <button type="button" className={i18n.language === 'vi-VN' ? 'is-active' : ''} onClick={() => void i18n.changeLanguage('vi-VN')} aria-pressed={i18n.language === 'vi-VN'}>VI</button>
-          </div>
-        </div>
-      </footer>
+      {authEnabled ? (
+        <footer className="workspace-footer">
+          <AuthenticatedAccount />
+        </footer>
+      ) : null}
     </aside>
   )
 }

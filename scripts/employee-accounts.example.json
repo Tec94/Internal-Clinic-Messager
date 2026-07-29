@@ -1,0 +1,49 @@
+{
+  "environment": "development",
+  "organization": {
+    "name": "Phòng Khám Y Khoa Sài Gòn",
+    "slug": "yksg",
+    "shortName": "YKSG",
+    "legalName": "Phòng Khám Y Khoa Sài Gòn",
+    "defaultLocale": "vi-VN",
+    "timezone": "Asia/Ho_Chi_Minh"
+  },
+  "locations": [
+    {
+      "key": "main-clinic",
+      "name": "Main Clinic",
+      "shortName": "MAIN",
+      "timezone": "Asia/Ho_Chi_Minh"
+    }
+  ],
+  "departments": [
+    {
+      "key": "operations",
+      "name": "Operations",
+      "code": "OPS"
+    }
+  ],
+  "channels": [],
+  "accounts": [
+    {
+      "key": "employee-name",
+      "email": "employee@example.com",
+      "fullName": "Employee Name",
+      "role": "staff",
+      "aal": "aal2",
+      "locale": "vi-VN",
+      "defaultLocation": "main-clinic",
+      "notificationsEnabled": true,
+      "quietHoursStart": "21:00",
+      "quietHoursEnd": "07:00",
+      "assignments": [
+        {
+          "location": "main-clinic",
+          "department": "operations",
+          "primary": true
+        }
+      ],
+      "channelAccess": {}
+    }
+  ]
+}

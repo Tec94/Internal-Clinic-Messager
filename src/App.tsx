@@ -27,6 +27,11 @@ const ChannelPage = lazy(() =>
 const TasksPage = lazy(() => import('./pages/ModulePages').then((module) => ({ default: module.TasksPage })))
 const DocumentsPage = lazy(() => import('./pages/ModulePages').then((module) => ({ default: module.DocumentsPage })))
 const MeetingsPage = lazy(() => import('./pages/ModulePages').then((module) => ({ default: module.MeetingsPage })))
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((module) => ({
+    default: module.SettingsPage,
+  })),
+)
 
 export function App({ requireAuth = false }: { requireAuth?: boolean }) {
   const Workspace = requireAuth ? AuthenticatedWorkspace : AppShell
@@ -82,6 +87,7 @@ export function App({ requireAuth = false }: { requireAuth?: boolean }) {
           <Route path="/tasks/:taskId?" element={<TasksPage />} />
           <Route path="/documents/:documentId?" element={<DocumentsPage />} />
           <Route path="/meetings/:meetingId?" element={<MeetingsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/todos" element={<TodosPage />} />
           <Route path="/channels" element={<ChannelLanding />} />
           <Route path="/channels/:channelId" element={<ChannelPage />} />

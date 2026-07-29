@@ -25,17 +25,16 @@ server function or API.
 
 ## Current implementation status
 
-As of July 26, 2026, the local Phase 0 backend spike, the first protected
-Phase 1 flows, and the authenticated Chat, Inbox, and private message
-attachment slices of Phase 2 are implemented. The user-designated hosted
-development backend now has the same six tracked migrations as the
-repository. Authenticated Chat and Inbox use the Supabase repositories;
-unfinished modules still use synthetic `ClinicProvider` data only in the
-preview path.
+As of July 29, 2026, the durable application foundation is implemented on the
+`develop` branch. The hosted development backend has all thirteen tracked
+migrations and three JWT-protected Edge Functions. Authenticated Chat, Inbox,
+directory, Tasks, Meetings, announcements, account settings, and supported
+administration paths use Supabase. Synthetic data and the floating role panel
+remain available only when `VITE_REQUIRE_AUTH=false`.
 
 The completed repository and development-backend slice includes:
 
-- Six tracked imperative migrations for identity, assignments, scoped roles,
+- Thirteen tracked imperative migrations for identity, assignments, scoped roles,
   onboarding, channels, messages, attachment metadata and linkage, audit
   events, Realtime publication, composite foreign-key indexes, and an
   expiring development MFA test exception.
@@ -58,46 +57,84 @@ The completed repository and development-backend slice includes:
 - An atomic message-and-attachment RPC, 60-second signed downloads, resumable
   six MiB chunks, upload progress and cancellation, and explicit
   “Unscanned — development only” labeling.
-- Fifty-three Vitest tests, one hundred pgTAP assertions, database lint, local
+- A localized chat composer that submits with Enter, adds a line with
+  Shift+Enter, and ignores Enter during input method editor (IME) composition.
+  It keeps the existing privacy, meeting, attachment, and send guards.
+- A localized whole-application context menu for Inbox, Chat, Tasks, and
+  Documents, plus message-specific Copy message and Assign task actions.
+  Editable fields retain their native browser menu. The menu supports keyboard
+  access, touch long-press, managed focus, and viewport collision handling.
+- A responsive message content track with a 24 px desktop inset, a 12 px
+  mobile inset, an aligned date divider, and vertically centered composer
+  text in English and Vietnamese.
+- Durable account preferences that save language, default location,
+  notifications, quiet hours, and time zone across sessions and devices.
+- A signed-in password change form that requires the current password, checks
+  confirmation, and shows strength against the 12-character password policy.
+- Durable Tasks, Meetings, directory, announcements, access requests, policy
+  warnings, organization settings, locations, and scoped member assignments.
+- An idempotent manual employee provisioner and a 14-account development test
+  matrix covering AAL2, AAL1 denial, scoped roles, view-only access,
+  suspension, expiry, and outsider denial.
+- Fourteen confirmed hosted Auth identities. Twelve have verified TOTP
+  factors, one remains AAL1 for denial testing, and one uses the expiring
+  development-only MFA bypass.
+- A versioned service worker, real PNG and maskable icons, install and update
+  UX, offline status, safe shell precaching, self-hosted fonts, and per-device
+  Web Push subscription storage. Supabase and attachment traffic is
+  network-only.
+- A fail-closed ClamAV promotion path and a container image that passed a local
+  startup and health check. Production requires a deployed scanner and
+  `ATTACHMENT_SCAN_MODE=clamav`; `dev_bypass` remains development-only.
+- Vercel SPA routing and security headers. The personal Zalo launcher opens
+  Zalo Web Chat in a separate Zalo-controlled window when
+  `VITE_ENABLE_ZALO_LAUNCHER=true`. It does not import chats or store Zalo
+  credentials.
+- Fifty-nine Vitest tests, 128 pgTAP assertions, database lint, local
   security and performance advisors, and repeatable Realtime and attachment
   integration tests. The attachment test uploads seven MiB, promotes it,
   links it atomically, downloads it through a signed URL, and removes all test
   data.
-- A hosted development deployment with 20 empty public tables, RLS on all 20,
-  47 public-schema policies, 20 restrictive AAL2 policies, no anonymous
+- A hosted development deployment with 36 public tables, RLS on all 36,
+  85 public-schema policies, 36 AAL2 policy checks, no anonymous
   attachment grants, and the `messages` table in the Realtime publication.
-- Two active hosted Edge Functions with JWT verification enabled. They remain
-  fail-closed until the development-only scan-mode secret is configured.
-- An expiring, per-user hosted MFA bypass for the sole existing test identity.
-  It expires on August 2, 2026 at 09:50 UTC, logs first use per Auth session,
-  and leaves every non-allowlisted AAL1 identity denied.
-- A rolled-back hosted RLS smoke test covering authorized sends, author-spoof
-  denial, idempotency, view-only denial, cross-organization isolation, and AAL1
-  denial. It left no synthetic public or Auth rows.
+- Three active hosted Edge Functions with JWT verification enabled. Attachment
+  promotion and Web Push remain fail-closed until their server secrets are
+  configured.
+- Two expiring, per-user hosted MFA bypass entries for development testing.
+  The synthetic bypass expires on August 3, 2026 at 16:13 UTC, logs first use
+  per Auth session, and leaves every non-allowlisted AAL1 identity denied.
+- Real hosted password and TOTP sessions for every test identity. They prove
+  active role access, location and department scope boundaries, view-only
+  behavior, AAL1 denial, development bypass, suspension, expiry, outsider
+  isolation, and stored locale and time-zone preferences.
 - Hosted performance advisors with no missing foreign-key indexes. The
-  remaining unused-index notices are expected while every public table is
-  empty.
+  remaining unused-index notices are expected with the small synthetic
+  development dataset.
 - A hosted security-advisor warning that leaked-password protection is
   disabled. This is an accepted Free-plan development limitation, not a
   blocker for synthetic development identities. Revisit it before production
   if the selected plan supports the feature.
+- `npm audit --omit=dev` reports the React Router RSC-mode CSRF advisory for
+  version 7.18.1. This Vite application uses only browser SPA routing and has
+  no React Server Components, server actions, or React Router server runtime.
+  Do not add those modes until an unaffected upstream release is available.
 
-The local browser suite isn't fully green. Its latest desktop run passed nine
-functional and accessibility tests, skipped two phone-only tests, and failed
-three stale visual snapshots with 2% text-rendering differences. Review the
-rendered change before updating those baselines.
+The current frontend checks pass the unit test, type-check, lint, production
+build, React Doctor, whitespace, and six-viewport Playwright gates. The
+accepted visual baselines cover 1280 × 1024, 1024 × 768, 768 × 1024,
+390 × 844, 320 × 568, and 844 × 390. They verify composer and date-divider
+alignment, mobile overflow, Enter-to-send, English and Vietnamese labels,
+context-menu collision handling, settings persistence, and editable-field
+native menus.
 
 The next implementation boundary is:
 
 - Set `ATTACHMENT_SCAN_MODE=dev_bypass` only in the hosted development Edge
   Function secrets, run the hosted attachment flow, and then enable
   `VITE_ENABLE_ATTACHMENTS=true` for that development client.
-- Create approved synthetic development identities through the Auth Admin API.
-- Run real hosted sign-in, TOTP AAL2, onboarding, suspension, expiry,
-  Realtime, resumable upload, promotion, and signed-download scenarios. The
-  SQL-level authorization smoke test doesn't replace real-session checks.
-- Move the People directory and Tasks module behind database contracts and RLS
-  before enabling them in authenticated production mode.
+- Run the remaining hosted Realtime, resumable upload, promotion, and
+  signed-download scenarios with the provisioned development identities.
 - Integrate an approved malware scanner before staging or production. Any mode
   other than explicit `dev_bypass` must keep promotion and bypassed downloads
   disabled.
@@ -114,6 +151,13 @@ Use these repository artifacts to review the claims in the status section:
 - [Private attachment migration](../supabase/migrations/20260726092300_create_private_attachments.sql)
 - [Development MFA bypass migration](../supabase/migrations/20260726094939_add_development_mfa_bypass.sql)
 - [Development MFA bypass index migration](../supabase/migrations/20260726095217_index_development_mfa_bypass_creator.sql)
+- [Account preferences migration](../supabase/migrations/20260728090000_add_account_preferences.sql)
+- [Tasks and meetings migration](../supabase/migrations/20260728100000_add_tasks_and_meetings.sql)
+- [Governance and administration migration](../supabase/migrations/20260728110000_add_governance_and_admin.sql)
+- [Clean attachment completion migration](../supabase/migrations/20260728120000_add_clean_attachment_completion.sql)
+- [Function privilege hardening migration](../supabase/migrations/20260728130000_harden_function_privileges.sql)
+- [Notification authorization migration](../supabase/migrations/20260728140000_add_notification_authorization.sql)
+- [Notification authorization repair](../supabase/migrations/20260728150000_fix_notification_authorization.sql)
 - [Database policy tests](../supabase/tests/database)
 - [AAL2 and Realtime integration test](../supabase/tests/integration/realtime.mjs)
 - [Private attachment integration test](../supabase/tests/integration/attachments.mjs)
@@ -123,6 +167,11 @@ Use these repository artifacts to review the claims in the status section:
 - [Attachment Edge Functions](../supabase/functions)
 - [Messaging query and Realtime boundary](../src/state/MessagingContext.tsx)
 - [Messaging boundary tests](../src/test/messaging-context.test.tsx)
+- [Application context menu](../src/components/AppShell.tsx)
+- [Message context menu](../src/components/MessageThread.tsx)
+- [Chat composer behavior](../src/pages/ChannelPage.tsx)
+- [Frontend interaction tests](../src/test/app.test.tsx)
+- [Zalo personal chat integration decision](ZALO_INTEGRATION.md)
 
 ## Decisions required before staged rollout
 
@@ -155,10 +204,10 @@ distinguishes the local database implementation from the remaining target.
 | Identity | `profiles`, `organizations`, `organization_members`, `invitations`, `onboarding_progress` | Local and hosted development |
 | Structure | `locations`, `departments`, `assignments`, `role_bindings`, `role_binding_locations`, `role_binding_departments` | Local and hosted development |
 | Chat | `channels`, `channel_locations`, `channel_departments`, `channel_memberships`, `messages`, `message_receipts` | Local and hosted development |
-| Work | `tasks`, `task_collaborators`, `task_checklist_items`, `meetings`, `meeting_responses` | Planned |
+| Work | `tasks`, `task_collaborators`, `task_checklist_items`, `meetings`, `meeting_responses` | Local and hosted development |
 | Files | `attachments`, `message_attachments`, and private channel-scoped object paths | Local and hosted development; client gated |
-| Publishing | `announcements`, `announcement_audiences`, `announcement_acknowledgements` | Planned |
-| Governance | `access_requests`, `audit_events`, `policy_warning_events`, `notification_preferences`, `push_subscriptions` | `audit_events` in local and hosted development; remaining tables planned |
+| Publishing | `announcements`, scoped audiences, `announcement_acknowledgements` | Local and hosted development |
+| Governance | `access_requests`, `audit_events`, `policy_warning_events`, `account_preferences`, `push_subscriptions` | Local and hosted development |
 
 Use append-only audit records for access, membership, role, announcement,
 warning, export, and break-glass events. Audit warning metadata, not the flagged
@@ -204,13 +253,16 @@ boundary work now has the following status:
    promotion, atomic message linkage, and short-lived downloads. The client
    feature stays disabled until hosted secrets and real-session tests pass.
    Task attachments remain preview-only.
-4. **Next:** Add durable directory and task repositories, RLS policies, query
-   keys, and UI boundaries. Keep People and Tasks synthetic until those
-   contracts are tested.
-5. **Partially completed:** Keep onboarding completion transactional in the
-   database. Add trusted workflows for derived memberships, invitations,
-   assignment changes, offboarding, and announcements before enabling their
-   production UI.
+4. **Completed for chat interactions:** Use the existing form for safe
+   Enter-to-send behavior, keep Shift+Enter and IME input intact, provide
+   localized application and message context menus, and preserve native
+   editable-field menus. These changes add no backend or data-model boundary.
+5. **Completed:** Use durable directory, task, meeting, announcement, access,
+   and administration contracts in authenticated mode.
+6. **Current release boundary:** Staff onboarding is deferred. Administrators
+   create existing employee accounts with the manual provisioner, which marks
+   their setup complete. Invitation, SSO, and automated offboarding remain
+   later organization-lifecycle work.
 
 Create separate backend projects for local development, staging, and
 production. Store schema and RLS changes as reviewed migrations; use synthetic
@@ -323,10 +375,10 @@ not production approval or hosted deployment status.
 This phase establishes the approval boundary and proves the backend assumptions.
 
 - [ ] Resolve the five governance decisions above.
-- [x] Create the local backend configuration and six tracked migrations.
+- [x] Create the local backend configuration and thirteen tracked migrations.
 - [x] Connect the Supabase MCP and compare hosted tables, migration history,
   logs, and advisors without changing the project.
-- [x] Classify the configured hosted project as development, deploy the six
+- [x] Classify the configured hosted project as development, deploy all
   repository migrations, and preserve the local migration timestamps.
 - [x] Verify hosted RLS, grants, Realtime publication, foreign-key indexes, and
   transactional sender, view-only, outsider, and AAL1 cases.
@@ -344,10 +396,11 @@ This phase establishes trusted staff identity and organization lifecycle flows.
   transactional staff onboarding.
 - [x] Add an expiring, per-user MFA bypass for development testing with a
   visible warning and private session-use ledger.
-- [ ] Build invitation acceptance, the selected SSO callback or Auth0 token
-  bridge, and the organization setup wizard.
-- [ ] Implement transactional membership derivation, assignment changes, and
-  offboarding.
+- [x] Add manual, idempotent employee provisioning for the onboarding-deferred
+  release.
+- [x] Add persistent account settings and signed-in password change.
+- [ ] Add the selected SSO bridge and automated offboarding after the manual
+  employee release.
 
 ### Phase 2 — durable core messaging
 
@@ -360,20 +413,28 @@ This phase replaces synthetic messaging state with authorized durable data.
 - [x] Replace authenticated Chat and Inbox channel/message state with the
   production repositories while keeping preview mocks for isolated UI tests.
 - [x] Add composite indexes for every hosted foreign-key coverage warning.
-- [ ] Move directory queries and tasks to Postgres.
+- [x] Harden chat keyboard input, localized context menus, responsive message
+  insets, and editable-field browser-menu behavior.
+- [x] Move directory queries, tasks, meetings, announcements, access requests,
+  and supported administration to Postgres.
 - [x] Add private message attachments with scoped Storage policies, resumable
   uploads, trusted development promotion, and signed downloads.
-- [ ] Replace the explicit development bypass with approved malware scanning
-  before staging or production.
-- [ ] Keep meetings and announcements behind feature flags until their policies
-  and transaction paths are tested.
+- [x] Add a fail-closed ClamAV scan contract and container. Deploy and approve
+  the scanner before enabling production attachments.
+- [x] Add tested meeting and announcement policies and transaction paths.
 
 ### Phase 3 — PWA pilot
 
 This phase prepares one controlled department for a hosted PWA pilot.
 
-- [ ] Add the service worker, install education, web push, update UX,
-  monitoring, backups, recovery drills, and staging-to-production promotion.
+- [x] Add the service worker, install education, update UX, icons, safe cache
+  policy, security headers, and per-device Web Push subscription storage.
+- [x] Add an authenticated generic notification delivery worker that honors
+  quiet hours and revokes dead subscriptions.
+- [x] Replace the Official Account widget with a personal Zalo Web Chat
+  launcher and document the no-import boundary.
+- [ ] Configure VAPID secrets, monitoring, backups, recovery drills, and
+  staging-to-production promotion.
 - [ ] Pilot with one department at one location before organization-wide
   rollout.
 
@@ -390,24 +451,17 @@ This phase adds the native capabilities and evidence required for distribution.
 
 ## Immediate next milestone
 
-The next milestone is a real-session hosted development messaging path.
-Complete these steps in order:
+The remaining milestone is deployment evidence, not another application data
+model:
 
-1. Set `ATTACHMENT_SCAN_MODE=dev_bypass` in hosted development Edge Function
-   secrets. Never set it in staging or production.
-2. Provision synthetic organization and membership data for approved
-   development identities. Verify both the temporary AAL1 bypass and real TOTP
-   AAL2, plus onboarding, suspended access, expired access, and outsider denial.
-   Treat leaked-password protection as a deferred Free-plan limitation.
-3. Exercise Chat, Inbox, Realtime, a file larger than six MiB, development
-   promotion, atomic message linkage, and signed download against hosted
-   development.
-4. After that flow passes, set `VITE_ENABLE_ATTACHMENTS=true` only for the
-   development client.
-5. Move directory reads and Tasks behind tested repository and RLS boundaries.
-6. Review the three desktop visual diffs before accepting new baselines; keep
-   the functional, accessibility, unit, database, integration, and build gates
-   green.
+1. Deploy the scanner container and configure the finalizer secrets.
+2. Deploy the Vercel client with production flags and complete the hosted
+   AAL2, upload, download, persistence, install, and update smoke tests.
+3. Configure the generic Web Push worker's VAPID secrets and prove delivery.
+4. Complete clinic approval, backup restoration, device review, signing, and
+   store records. These external gates cannot be completed from source code.
+
+Use [the deployment runbook](DEPLOYMENT.md) for the exact handoff.
 
 ## Production exit criteria
 
@@ -447,3 +501,4 @@ roadmap.
 - [WebKit web push for Home Screen apps](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)
 - [Capacitor web/native runtime](https://capacitorjs.com/docs)
 - [Apple App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
+- [Zalo developer documentation](https://developers.zalo.me/docs/)

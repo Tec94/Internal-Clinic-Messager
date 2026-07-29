@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react'
+import i18n from '../i18n'
 import { supabase } from '../utils/supabase'
 
 type AuthStatus =
@@ -41,7 +42,6 @@ interface AuthContextValue {
 }
 
 type MembershipStatus = 'active' | 'suspended' | 'offboarded'
-type OnboardingStatus = 'profile' | 'mfa' | 'policies' | 'preferences' | 'complete'
 
 interface MembershipRow {
   id: string
@@ -49,10 +49,6 @@ interface MembershipRow {
   status: MembershipStatus
   starts_at: string
   expires_at: string | null
-  onboarding_progress:
-    | { status: OnboardingStatus }
-    | Array<{ status: OnboardingStatus }>
-    | null
 }
 
 interface AccessState {
@@ -112,8 +108,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         organization_id,
         status,
         starts_at,
-        expires_at,
-        onboarding_progress(status)
+        expires_at
       `)
       .eq('user_id', session.user.id)
 
@@ -124,7 +119,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     setAuthorizationError(null)
-    setAccess(classifyAccess((data ?? []) as MembershipRow[]))
+    const nextAccess = classifyAccess((data ?? []) as MembershipRow[])
+    setAccess(nextAccess)
+    if (nextAccess.status === 'active') {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('locale')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        if (profile?.locale === 'en-US' || profile?.locale === 'vi-VN') {
+          await i18n.changeLanguage(profile.locale)
+        }
+      } catch {
+        // Locale loading must not invalidate an otherwise authorized session.
+      }
+    }
     return null
   }, [session])
 
@@ -251,11 +261,8 @@ function classifyAccess(rows: MembershipRow[]): AccessState {
   ))
 
   if (activeMembership) {
-    const progress = Array.isArray(activeMembership.onboarding_progress)
-      ? activeMembership.onboarding_progress[0]
-      : activeMembership.onboarding_progress
     return {
-      status: progress?.status === 'complete' ? 'active' : 'onboarding',
+      status: 'active',
       membership: {
         id: activeMembership.id,
         organizationId: activeMembership.organization_id,
@@ -290,4 +297,10 @@ export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) throw new Error('useAuth must be used inside AuthProvider')
   return context
+}
+
+// Preview providers can run without creating a synthetic authenticated session.
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOptionalAuth() {
+  return useContext(AuthContext)
 }

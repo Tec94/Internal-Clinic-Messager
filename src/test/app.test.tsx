@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { MemoryRouter } from 'react-router-dom'
@@ -54,18 +54,14 @@ describe('clinic messenger application', () => {
     expect(screen.getByText(/recent channels/i)).toBeInTheDocument()
   })
 
-  it('keeps a personal Zalo integration entry point separate from clinic chat', async () => {
-    const user = userEvent.setup()
+  it('opens personal Zalo messages outside the clinic workspace', () => {
     renderApp('/inbox')
-    const trigger = screen.getByRole('button', { name: 'Open personal Zalo messages' })
-
-    await user.click(trigger)
-
-    const widget = screen.getByRole('dialog', { name: 'Connect your Zalo Official Account' })
-    expect(widget).toBeInTheDocument()
-    expect(within(widget).getByText('Private Zalo inbox chats and personal account messages are not shared with this workspace.')).toBeInTheDocument()
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Connect your Zalo Official Account' })).not.toBeInTheDocument()
+    const launcher = screen.getByRole('link', {
+      name: 'Open personal Zalo messages in a separate window',
+    })
+    expect(launcher).toHaveAttribute('href', 'https://chat.zalo.me/')
+    expect(launcher).toHaveAttribute('target', '_blank')
+    expect(launcher).toHaveAttribute('rel', 'noopener noreferrer')
   })
 
   it('keeps regular employees out of owner settings', async () => {
@@ -127,7 +123,10 @@ describe('clinic messenger application', () => {
     expect(within(moreSheet).getByRole('link', { name: 'Documents' })).toBeInTheDocument()
     expect(within(moreSheet).getByRole('link', { name: 'People' })).toBeInTheDocument()
     expect(within(moreSheet).getByRole('link', { name: 'Admin' })).toBeInTheDocument()
-    expect(within(moreSheet).getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(moreSheet).getByRole('link', { name: 'Settings' }))
+      .toHaveAttribute('href', '/settings')
+    expect(within(moreSheet).queryByRole('button', { name: 'EN' }))
+      .not.toBeInTheDocument()
   })
 
   it('opens module-specific task search and task details', async () => {
@@ -148,6 +147,73 @@ describe('clinic messenger application', () => {
     await user.type(within(dialog).getByLabelText('Meeting title'), 'Front desk team sync')
     await user.click(within(dialog).getByRole('button', { name: 'Post invitation' }))
     expect(await screen.findByRole('heading', { name: 'Front desk team sync' })).toBeInTheDocument()
+  })
+
+  it('sends with Enter, keeps Shift+Enter as a newline, and ignores IME Enter', async () => {
+    const user = userEvent.setup()
+    renderApp('/channels/front-desk-home')
+    const composer = await screen.findByPlaceholderText(/Message #front-desk-home/i)
+
+    await user.type(composer, 'First line')
+    await user.keyboard('{Shift>}{Enter}{/Shift}Second line')
+    expect(composer).toHaveValue('First line\nSecond line')
+
+    fireEvent.keyDown(composer, { key: 'Enter', isComposing: true })
+    expect(composer).toHaveValue('First line\nSecond line')
+
+    await user.keyboard('{Enter}')
+    expect(await screen.findByText('First line Second line')).toBeInTheDocument()
+    expect(composer).toHaveValue('')
+  })
+
+  it('shows the workspace menu outside messages and preserves the native composer menu', async () => {
+    renderApp('/channels/front-desk-home')
+    const composer = await screen.findByPlaceholderText(/Message #front-desk-home/i)
+
+    expect(fireEvent.contextMenu(composer)).toBe(true)
+    expect(screen.queryByRole('menu', { name: 'Workspace navigation' })).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(document.getElementById('main-content')!)
+    const menu = screen.getByRole('menu', { name: 'Workspace navigation' })
+    expect(within(menu).getByRole('menuitem', { name: 'Inbox' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Chat' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Tasks' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Documents' })).toBeInTheDocument()
+  })
+
+  it('opens the workspace menu after a touch long-press', async () => {
+    renderApp('/inbox')
+    const target = await screen.findByRole('heading', { name: /good morning, linh/i })
+
+    fireEvent.pointerDown(target, { pointerType: 'touch', clientX: 32, clientY: 32 })
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 720))
+    })
+
+    expect(screen.getByRole('menu', { name: 'Workspace navigation' })).toBeInTheDocument()
+    fireEvent.pointerUp(target, { pointerType: 'touch' })
+  })
+
+  it('uses message-specific copy and assignment actions', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    renderApp('/channels/front-desk-home')
+    const messageBody = 'Chào buổi sáng. Hướng dẫn bàn giao mới đã được cập nhật để mọi người cùng sử dụng.'
+    const message = (await screen.findByText(messageBody)).closest('article')!
+
+    fireEvent.contextMenu(message)
+    const copyMenu = screen.getByRole('menu', { name: 'Message actions' })
+    expect(screen.queryByRole('menu', { name: 'Workspace navigation' })).not.toBeInTheDocument()
+    await user.click(within(copyMenu).getByRole('menuitem', { name: 'Copy message' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(messageBody))
+
+    fireEvent.contextMenu(message)
+    await user.click(within(screen.getByRole('menu', { name: 'Message actions' })).getByRole('menuitem', { name: 'Assign task' }))
+    expect(await screen.findByRole('dialog', { name: 'Assign task' })).toBeInTheDocument()
   })
 
   it('opens a direct message from the people page', async () => {

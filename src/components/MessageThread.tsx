@@ -1,4 +1,5 @@
-import { CheckCircle2, ExternalLink, FileText, ListPlus, Video } from 'lucide-react'
+import * as ContextMenu from '@radix-ui/react-context-menu'
+import { CheckCircle2, Copy, ExternalLink, FileText, ListPlus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import i18n from '../i18n'
@@ -59,6 +60,16 @@ export function MessageThread({
   } = useMessaging()
   const thread = useMessagingThread(channel.id)
   const channelMessages = thread.messages
+  const [copyError, setCopyError] = useState('')
+
+  const copyMessage = async (body: string) => {
+    try {
+      await navigator.clipboard.writeText(body)
+      setCopyError('')
+    } catch {
+      setCopyError(t('contextMenu.copyFailed'))
+    }
+  }
 
   if (thread.isLoading) {
     return <div className="empty-thread" role="status">{t('common.loading')}</div>
@@ -89,6 +100,7 @@ export function MessageThread({
         </Button>
       ) : null}
       {thread.error ? <p className="field-error" role="alert">{thread.error}</p> : null}
+      {copyError ? <p className="sr-only" role="alert">{copyError}</p> : null}
       <div className="date-divider"><span>{t('common.today')}</span></div>
       {channelMessages.map((message) => {
         const member = members.find(
@@ -106,39 +118,75 @@ export function MessageThread({
         )
         const linkedTask = tasks.find((task) => task.id === message.taskId)
         return (
-          <article id={message.id} key={message.id} className={`message ${message.isUrgent ? 'message--urgent' : ''} ${isMine ? 'message--mine' : ''}`}>
-            <Avatar initials={author.initials} presence={author.presence} />
-            <div className="message__content">
-              <header>
-                <strong>{author.fullName}</strong>
-                <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-                {message.isUrgent ? <StatusBadge tone="urgent">{t('common.urgent')}</StatusBadge> : null}
-              </header>
-              <div className="message__bubble"><p>{message.body}</p></div>
-              {supportsIntegrations && onAssignTask ? (
-                <button className="message-action" type="button" onClick={() => onAssignTask(message.id, message.body)}>
-                  <ListPlus size={15} aria-hidden="true" />
-                  {t('task.assignTask')}
-                </button>
-              ) : null}
-              {supportsAttachments ? messageAttachments.map((attachment) => (
-                <MessageAttachment
-                  attachment={attachment}
-                  isProduction={isProduction}
-                  key={attachment.id}
-                  onDownload={downloadAttachment}
-                />
-              )) : null}
-              {supportsIntegrations && linkedTask ? (
-                <button type="button" className="linked-task">
-                  <CheckCircle2 size={19} aria-hidden="true" />
-                  <span>{linkedTask.title}</span>
-                  <StatusBadge tone={linkedTask.status === 'done' ? 'success' : 'active'}>{t(`common.${linkedTask.status === 'done' ? 'done' : 'open'}`)}</StatusBadge>
-                </button>
-              ) : null}
-              {supportsIntegrations && message.meetingId ? <MeetingCard meeting={meetings.find((meeting) => meeting.id === message.meetingId)} response={meetingResponses.find((response) => response.meetingId === message.meetingId && response.userId === currentMemberId)?.status} organizerName={users.find((user) => user.id === meetings.find((meeting) => meeting.id === message.meetingId)?.organizerId)?.name} channelName={channels.find((item) => item.id === message.channelId)?.displayName} onRespond={(status) => respondToMeeting(message.meetingId!, status)} /> : null}
-            </div>
-          </article>
+          <ContextMenu.Root key={message.id}>
+            <ContextMenu.Trigger asChild>
+              <article
+                id={message.id}
+                className={`message ${message.isUrgent ? 'message--urgent' : ''} ${isMine ? 'message--mine' : ''}`}
+                onContextMenu={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <Avatar initials={author.initials} presence={author.presence} />
+                <div className="message__content">
+                  <header>
+                    <strong>{author.fullName}</strong>
+                    <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                    {message.isUrgent ? <StatusBadge tone="urgent">{t('common.urgent')}</StatusBadge> : null}
+                  </header>
+                  <div className="message__bubble"><p>{message.body}</p></div>
+                  {supportsIntegrations && onAssignTask ? (
+                    <button className="message-action" type="button" onClick={() => onAssignTask(message.id, message.body)}>
+                      <ListPlus size={15} aria-hidden="true" />
+                      {t('task.assignTask')}
+                    </button>
+                  ) : null}
+                  {supportsAttachments ? messageAttachments.map((attachment) => (
+                    <MessageAttachment
+                      attachment={attachment}
+                      isProduction={isProduction}
+                      key={attachment.id}
+                      onDownload={downloadAttachment}
+                    />
+                  )) : null}
+                  {supportsIntegrations && linkedTask ? (
+                    <button type="button" className="linked-task">
+                      <CheckCircle2 size={19} aria-hidden="true" />
+                      <span>{linkedTask.title}</span>
+                      <StatusBadge tone={linkedTask.status === 'done' ? 'success' : 'active'}>{t(`common.${linkedTask.status === 'done' ? 'done' : 'open'}`)}</StatusBadge>
+                    </button>
+                  ) : null}
+                  {supportsIntegrations && message.meetingId ? <MeetingCard meeting={meetings.find((meeting) => meeting.id === message.meetingId)} response={meetingResponses.find((response) => response.meetingId === message.meetingId && response.userId === currentMemberId)?.status} organizerName={users.find((user) => user.id === meetings.find((meeting) => meeting.id === message.meetingId)?.organizerId)?.name} channelName={channels.find((item) => item.id === message.channelId)?.displayName} onRespond={(status) => respondToMeeting(message.meetingId!, status)} /> : null}
+                </div>
+              </article>
+            </ContextMenu.Trigger>
+            <ContextMenu.Portal>
+              <ContextMenu.Content
+                className="context-menu"
+                aria-label={t('contextMenu.messageActions')}
+                collisionPadding={8}
+                loop
+              >
+                <ContextMenu.Item
+                  className="context-menu__item"
+                  onSelect={() => void copyMessage(message.body)}
+                >
+                  <Copy size={16} aria-hidden="true" />
+                  {t('contextMenu.copyMessage')}
+                </ContextMenu.Item>
+                {supportsIntegrations && onAssignTask ? (
+                  <ContextMenu.Item
+                    className="context-menu__item"
+                    onSelect={() => {
+                      window.setTimeout(() => onAssignTask(message.id, message.body), 0)
+                    }}
+                  >
+                    <ListPlus size={16} aria-hidden="true" />
+                    {t('task.assignTask')}
+                  </ContextMenu.Item>
+                ) : null}
+              </ContextMenu.Content>
+            </ContextMenu.Portal>
+          </ContextMenu.Root>
         )
       })}
     </div>

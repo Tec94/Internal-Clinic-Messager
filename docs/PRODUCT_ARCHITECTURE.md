@@ -10,9 +10,10 @@ staffing snapshots, safety warnings, and audit metadata.
 The preview workspace uses synthetic data so the architecture can be validated
 without connecting to clinic systems. Local and hosted development Supabase
 slices implement identity, assignments, scoped roles, onboarding, core
-messaging, private message attachments, audit metadata, RLS, and Realtime.
-Authenticated Chat and Inbox consume those boundaries; unfinished modules
-remain preview-only until their database boundaries exist.
+messaging, private message attachments, tasks, meetings, directory,
+announcements, account settings, supported administration, audit metadata,
+RLS, and Realtime. Authenticated routes consume these boundaries. Preview mode
+keeps synthetic data for isolated user-interface work.
 
 - YKSG is the short name for Phòng Khám Y Khoa Sài Gòn.
 - Both synthetic locations use `Asia/Ho_Chi_Minh`.
@@ -35,9 +36,10 @@ The architecture is split between a tested local production path and the
 synthetic preview path. This distinction prevents preview behavior from being
 mistaken for durable or hosted behavior.
 
-- The local backend includes organizations, profiles, memberships, locations,
+- The backend includes organizations, profiles, memberships, locations,
   departments, assignments, scoped roles, invitations, onboarding, channels,
-  channel memberships, messages, receipts, and metadata-only audit events.
+  channel memberships, messages, receipts, tasks, meetings, announcements,
+  access requests, account settings, and metadata-only audit events.
 - The authentication shell requires TOTP AAL2, checks active, suspended, and
   expired membership states, and completes onboarding transactionally. An
   expiring, per-user exception supports development testing only.
@@ -49,21 +51,16 @@ mistaken for durable or hosted behavior.
 - `MessagingProvider` joins authorized channels and member profiles, drives
   Chat and Inbox through TanStack Query, and deduplicates sent and Realtime
   messages in the query cache.
-- Preview Chat and Inbox retain `ClinicProvider` data. People, Tasks,
-  Documents, Meetings, and Admin remain synthetic preview modules. Durable
-  attachments currently belong only to authenticated chat messages.
-- The four repository migrations are verified locally and deployed to the
-  user-designated hosted development backend. All 20 public tables have RLS,
-  and hosted transactional smoke checks cover sender, view-only, outsider,
-  idempotency, and AAL1 behavior without retaining synthetic rows.
-- The hosted development project has two private 10 MiB buckets and two active
-  JWT-verifying Edge Functions. The client feature remains off until the
-  development scan-mode secret and hosted real-session checks are complete.
-- Real hosted Auth sessions, TOTP enrollment, and Realtime delivery still need
-  approved synthetic development identities and Auth Admin API access.
-- Tasks, task attachments, announcements, access requests, notifications,
-  meetings, a production malware scanner, and lifecycle automation remain
-  target architecture until their database contracts and RLS tests exist.
+- Authenticated Chat, Inbox, directory, Tasks, Meetings, announcements,
+  settings, and supported administration use production repositories. Preview
+  mode retains `ClinicProvider` data for interface tests.
+- The personal Zalo launcher opens Zalo Web Chat in a separate
+  Zalo-controlled window. It does not import a personal inbox or put Zalo data
+  inside the YKSG authorization and retention boundary.
+- A production malware scanner, push delivery secrets, selected SSO bridge,
+  automated offboarding, monitoring, and recovery operations remain external
+  release requirements. The
+  [production roadmap](PRODUCTION_ROADMAP.md) records their current status.
 
 ## Attachment security boundary
 
@@ -81,6 +78,7 @@ never share the same access path as available files.
 - Any other scan mode fails closed. Staging and production require an approved
   malware scanner before promotion or download.
 - Downloads require current channel read access and use a 60-second signed URL.
+- The database never stores a permanent public URL.
 
 ## Development authentication boundary
 
@@ -101,7 +99,6 @@ frontend the authorization source.
 
 Staging and production must contain no bypass entries and must keep the client
 flag disabled.
-  The database never stores a permanent public URL.
 
 ## Department and location taxonomy
 

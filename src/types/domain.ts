@@ -45,6 +45,9 @@ export interface Organization {
   legalName: string
   defaultLocale: 'en-US' | 'vi-VN'
   locationIds: string[]
+  timezone?: string
+  retentionDays?: 30 | 90 | 365
+  operationalWarningDefault?: boolean
 }
 
 export interface Location {
@@ -334,4 +337,33 @@ export interface CreateAnnouncementInput {
   priority: AnnouncementPriority
   requireAcknowledgement: boolean
   status: 'draft' | 'published'
+}
+
+export interface SaveOrganizationSettingsInput {
+  name: string
+  shortName: string
+  legalName: string
+  defaultLocale: Organization['defaultLocale']
+  timezone: string
+  retentionDays: 30 | 90 | 365
+  operationalWarningDefault: boolean
+}
+
+export interface SaveLocationInput {
+  id?: string
+  name: string
+  shortName: string
+  address: string
+  timezone: string
+  status: Location['status']
+}
+
+export interface SaveMemberAssignmentInput {
+  memberId: string
+  role: UserRole
+  locationId: string
+  departmentId: string
+  employmentType: 'employee' | 'contractor' | 'locum' | 'vendor'
+  status: 'active' | 'suspended' | 'offboarded'
+  expiresAt?: string
 }

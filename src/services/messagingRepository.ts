@@ -41,6 +41,8 @@ export interface MessagingMessage {
   clientMessageId: string
   body: string
   isUrgent: boolean
+  taskId?: string
+  meetingId?: string
   createdAt: string
   attachmentIds: string[]
   attachments: MessagingAttachment[]

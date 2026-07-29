@@ -55,6 +55,8 @@ interface MessageRow {
   client_message_id: string
   body: string
   is_urgent: boolean
+  task_id: string | null
+  meeting_id: string | null
   created_at: string
   message_attachments?: Array<{
     attachment:
@@ -85,6 +87,8 @@ const messageSelect = `
   client_message_id,
   body,
   is_urgent,
+  task_id,
+  meeting_id,
   created_at,
   message_attachments(
     attachment:attachments(
@@ -262,7 +266,11 @@ export function createSupabaseMessagingRepository(
         .single()
 
       if (error) throw new Error(`Could not send message: ${error.message}`)
-      return loadMessage(client, (data as MessageRow).id)
+      const message = await loadMessage(client, (data as MessageRow).id)
+      void client.functions.invoke('send-operational-notification', {
+        body: { messageId: message.id },
+      })
+      return message
     },
 
     subscribeToMessages(channelId, onMessage, onError) {
@@ -314,6 +322,8 @@ function mapMessage(row: MessageRow): MessagingMessage {
     clientMessageId: row.client_message_id,
     body: row.body,
     isUrgent: row.is_urgent,
+    taskId: row.task_id ?? undefined,
+    meetingId: row.meeting_id ?? undefined,
     createdAt: row.created_at,
     attachmentIds: attachments.map((attachment) => attachment.id),
     attachments,

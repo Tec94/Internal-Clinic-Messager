@@ -2,13 +2,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as Dialog from '@radix-ui/react-dialog'
 import { AlertCircle, Info, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { inspectOperationalContent } from '../services/mockClinicService'
 import { useClinic } from '../state/ClinicContext'
 import type { CreateChannelInput } from '../types/domain'
+import { AppSelect } from './AppSelect'
 import { Button, IconButton } from './ui'
 
 interface ChannelCreationDialogProps {
@@ -44,6 +45,7 @@ export function ChannelCreationDialog({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     watch,
@@ -79,7 +81,7 @@ export function ChannelCreationDialog({
     }
   }
 
-  const onSubmit = (input: CreateChannelInput) => {
+  const onSubmit = async (input: CreateChannelInput) => {
     const warnings = [
       ...inspectOperationalContent(input.name, 'channelName'),
       ...inspectOperationalContent(input.purpose, 'purpose'),
@@ -88,7 +90,7 @@ export function ChannelCreationDialog({
       setPolicyWarning(true)
       return
     }
-    const channel = createChannel(input)
+    const channel = await createChannel(input)
     onOpenChange(false)
     navigate(`/channels/${channel.id}`)
   }
@@ -149,26 +151,69 @@ export function ChannelCreationDialog({
               <div className="form-grid">
                 <div className="form-field">
                   <label htmlFor="channel-privacy">{t('createChannel.privacy')}</label>
-                  <select id="channel-privacy" {...register('visibility')}>
-                    <option value="private">{t('createChannel.private')}</option>
-                    <option value="restricted">{t('createChannel.departmentPublic')}</option>
-                  </select>
+                  <Controller
+                    name="visibility"
+                    control={control}
+                    render={({ field }) => (
+                      <AppSelect
+                        ref={field.ref}
+                        id="channel-privacy"
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        onBlur={field.onBlur}
+                        ariaInvalid={Boolean(errors.visibility)}
+                        options={[
+                          { value: 'private', label: t('createChannel.private') },
+                          { value: 'restricted', label: t('createChannel.departmentPublic') },
+                        ]}
+                      />
+                    )}
+                  />
                 </div>
                 <div className="form-field">
                   <label htmlFor="channel-location">{t('createChannel.locationScope')}</label>
-                  <select id="channel-location" {...register('locationId')}>
-                    {locations.map((location) => <option key={location.id} value={location.id}>{location.shortName}</option>)}
-                  </select>
+                  <Controller
+                    name="locationId"
+                    control={control}
+                    render={({ field }) => (
+                      <AppSelect
+                        ref={field.ref}
+                        id="channel-location"
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        onBlur={field.onBlur}
+                        ariaInvalid={Boolean(errors.locationId)}
+                        options={locations.map((location) => ({
+                          value: location.id,
+                          label: location.shortName,
+                        }))}
+                      />
+                    )}
+                  />
                 </div>
               </div>
 
               <div className="form-field">
                 <label htmlFor="channel-archive">{t('createChannel.archiveDefault')}</label>
-                <select id="channel-archive" {...register('archivePolicy')}>
-                  <option value="24h">{t('createChannel.archive24')}</option>
-                  <option value="7d">{t('createChannel.archive7')}</option>
-                  <option value="indefinite">{t('createChannel.indefinite')}</option>
-                </select>
+                <Controller
+                  name="archivePolicy"
+                  control={control}
+                  render={({ field }) => (
+                    <AppSelect
+                      ref={field.ref}
+                      id="channel-archive"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      ariaInvalid={Boolean(errors.archivePolicy)}
+                      options={[
+                        { value: '24h', label: t('createChannel.archive24') },
+                        { value: '7d', label: t('createChannel.archive7') },
+                        { value: 'indefinite', label: t('createChannel.indefinite') },
+                      ]}
+                    />
+                  )}
+                />
               </div>
 
               <label className="urgent-checkbox">

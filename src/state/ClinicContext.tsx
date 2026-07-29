@@ -2,10 +2,13 @@ import {
   createContext,
   type PropsWithChildren,
   useContext,
+  useMemo,
   useState,
 } from 'react'
+import { QueryClient, useQuery } from '@tanstack/react-query'
 import {
   announcements as seedAnnouncements,
+  accessRequests as seedAccessRequests,
   attachments as seedAttachments,
   assignments,
   channels as seedChannels,
@@ -16,14 +19,17 @@ import {
   meetings as seedMeetings,
   memberships as seedMemberships,
   organization,
+  auditEvents as seedAuditEvents,
   roleBindings,
   tasks as seedTasks,
   users,
 } from '../data/seed'
 import { canSendMessageInChannel, hasPermission } from '../services/permissions'
+import { createSupabaseClinicRepository } from '../services/supabaseClinicRepository'
 import { mockUploadAdapter } from '../services/uploadAdapter'
 import type {
   Announcement,
+  AccessRequest,
   Channel,
   ChannelMembership,
   CreateMeetingInput,
@@ -35,14 +41,23 @@ import type {
   MeetingResponse,
   MeetingResponseStatus,
   Permission,
+  SaveLocationInput,
+  SaveMemberAssignmentInput,
+  SaveOrganizationSettingsInput,
   SendMessageInput,
   Task,
   Attachment,
   UpdateTaskInput,
   UploadTarget,
+  AuditEvent,
 } from '../types/domain'
+import { useOptionalAuth } from './AuthContext'
 
-interface ClinicContextValue {
+const clinicQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+})
+
+export interface ClinicContextValue {
   organization: typeof organization
   locations: typeof locations
   departments: typeof departments
@@ -57,32 +72,78 @@ interface ClinicContextValue {
   meetings: Meeting[]
   meetingResponses: MeetingResponse[]
   announcements: Announcement[]
+  accessRequests: AccessRequest[]
+  auditEvents: AuditEvent[]
   currentUser: (typeof users)[number]
   currentBinding: (typeof roleBindings)[number]
   currentLocationId: string
   setCurrentUserId: (userId: string) => void
   setCurrentLocationId: (locationId: string) => void
   hasPermission: (permission: Permission) => boolean
-  createChannel: (input: CreateChannelInput) => Channel
+  createChannel: (input: CreateChannelInput) => Channel | Promise<Channel>
   canSendMessage: (channelId: string) => boolean
   ensureDirectChannel: (targetUserId: string) => Channel | null
   sendMessage: (input: SendMessageInput) => Message | null
-  createTask: (input: CreateTaskInput) => Task
-  updateTask: (taskId: string, patch: UpdateTaskInput) => void
+  createTask: (input: CreateTaskInput) => Task | Promise<Task>
+  updateTask: (
+    taskId: string,
+    patch: UpdateTaskInput,
+  ) => void | Promise<void>
   uploadAttachments: (files: File[], target: UploadTarget) => Promise<Attachment[]>
-  createMeeting: (input: CreateMeetingInput) => Meeting
-  respondToMeeting: (meetingId: string, status: MeetingResponseStatus) => void
-  createAnnouncement: (input: CreateAnnouncementInput) => Announcement
+  createMeeting: (input: CreateMeetingInput) => Meeting | Promise<Meeting>
+  respondToMeeting: (
+    meetingId: string,
+    status: MeetingResponseStatus,
+  ) => void | Promise<void>
+  createAnnouncement: (
+    input: CreateAnnouncementInput,
+  ) => Announcement | Promise<Announcement>
+  saveOrganizationSettings: (
+    input: SaveOrganizationSettingsInput,
+  ) => void | Promise<void>
+  saveLocation: (
+    input: SaveLocationInput,
+  ) => (typeof locations)[number] | Promise<(typeof locations)[number]>
+  saveMemberAssignment: (
+    input: SaveMemberAssignmentInput,
+  ) => void | Promise<void>
+  resolveAccessRequest: (
+    requestId: string,
+    status: 'approved' | 'denied',
+  ) => void | Promise<void>
 }
 
-const ClinicContext = createContext<ClinicContextValue | null>(null)
+export const ClinicContext = createContext<ClinicContextValue | null>(null)
 
 function getInitialUserId() {
   const saved = localStorage.getItem('clinic-persona')
   return users.some((user) => user.id === saved) ? saved! : 'user-employee'
 }
 
-export function ClinicProvider({ children }: PropsWithChildren) {
+export function ClinicProvider({
+  children,
+  authEnabled = false,
+}: PropsWithChildren<{ authEnabled?: boolean }>) {
+  const auth = useOptionalAuth()
+  const repository = useMemo(() => createSupabaseClinicRepository(), [])
+  const productionEnabled = (
+    authEnabled
+    && auth?.status === 'active'
+    && auth.membership !== null
+  )
+  const snapshotQuery = useQuery({
+    queryKey: [
+      'clinic',
+      'snapshot',
+      auth?.membership?.organizationId,
+      auth?.membership?.id,
+    ],
+    queryFn: () => repository.loadSnapshot({
+      organizationId: auth!.membership!.organizationId,
+      memberId: auth!.membership!.id,
+    }),
+    enabled: productionEnabled,
+  }, clinicQueryClient)
   const [currentUserId, setCurrentUserIdState] = useState(getInitialUserId)
   const [currentLocationId, setCurrentLocationId] = useState('loc-a')
   const [channels, setChannels] = useState(seedChannels)
@@ -93,6 +154,7 @@ export function ClinicProvider({ children }: PropsWithChildren) {
   const [meetings, setMeetings] = useState(seedMeetings)
   const [meetingResponses, setMeetingResponses] = useState(seedMeetingResponses)
   const [announcements, setAnnouncements] = useState(seedAnnouncements)
+  const [accessRequests, setAccessRequests] = useState(seedAccessRequests)
 
   const currentUser = users.find((user) => user.id === currentUserId) ?? users[3]
   const currentBinding =
@@ -364,7 +426,7 @@ export function ClinicProvider({ children }: PropsWithChildren) {
     ])
   }
 
-  const value: ClinicContextValue = {
+  const previewValue: ClinicContextValue = {
     organization,
     locations,
     departments,
@@ -379,6 +441,8 @@ export function ClinicProvider({ children }: PropsWithChildren) {
     meetings,
     meetingResponses,
     announcements,
+    accessRequests,
+    auditEvents: seedAuditEvents,
     currentUser,
     currentBinding,
     currentLocationId,
@@ -395,9 +459,169 @@ export function ClinicProvider({ children }: PropsWithChildren) {
     createMeeting,
     respondToMeeting,
     createAnnouncement,
+    saveOrganizationSettings: () => {},
+    saveLocation: (input) => {
+      const existing = locations.find((location) => location.id === input.id)
+      return existing ?? {
+        ...input,
+        id: input.id ?? `location-${Date.now()}`,
+        departmentIds: [],
+      }
+    },
+    saveMemberAssignment: () => {},
+    resolveAccessRequest: (requestId, status) => {
+      setAccessRequests((items) => items.map((request) => (
+        request.id === requestId ? { ...request, status } : request
+      )))
+    },
   }
 
-  return <ClinicContext.Provider value={value}>{children}</ClinicContext.Provider>
+  if (productionEnabled) {
+    if (snapshotQuery.isPending) {
+      return <div className="route-loading" role="status">Loading…</div>
+    }
+    if (snapshotQuery.error || !snapshotQuery.data || !auth?.membership) {
+      return (
+        <div className="route-loading" role="alert">
+          {snapshotQuery.error instanceof Error
+            ? snapshotQuery.error.message
+            : 'Could not load the workspace.'}
+        </div>
+      )
+    }
+
+    const snapshot = snapshotQuery.data
+    const productionCurrentUser = snapshot.users.find(
+      (user) => user.id === auth.membership!.id,
+    )
+    const productionCurrentBinding = snapshot.roleBindings.find(
+      (binding) => binding.userId === auth.membership!.id,
+    )
+    if (!productionCurrentUser || !productionCurrentBinding) {
+      return (
+        <div className="route-loading" role="alert">
+          The account has no active role assignment.
+        </div>
+      )
+    }
+    const scope = {
+      organizationId: auth.membership.organizationId,
+      memberId: auth.membership.id,
+    }
+    const productionValue: ClinicContextValue = {
+      ...snapshot,
+      messages: [],
+      currentUser: productionCurrentUser,
+      currentBinding: productionCurrentBinding,
+      currentLocationId: 'all',
+      setCurrentUserId: () => {},
+      setCurrentLocationId,
+      hasPermission: (permission) => hasPermission(
+        productionCurrentBinding,
+        permission,
+      ),
+      createChannel: async (input) => {
+        const id = await repository.createChannel(scope, input)
+        const refreshed = await snapshotQuery.refetch()
+        const channel = refreshed.data?.channels.find((item) => item.id === id)
+        if (!channel) throw new Error('The created channel could not be loaded.')
+        return channel
+      },
+      canSendMessage: (channelId) => snapshot.memberships.some(
+        (membership) => (
+          membership.channelId === channelId
+          && membership.userId === auth.membership!.id
+        ),
+      ),
+      ensureDirectChannel: () => null,
+      sendMessage: () => null,
+      createTask: async (input) => {
+        const id = await repository.createTask(scope, input)
+        const refreshed = await snapshotQuery.refetch()
+        const task = refreshed.data?.tasks.find((item) => item.id === id)
+        if (!task) throw new Error('The created task could not be loaded.')
+        return task
+      },
+      updateTask: async (taskId, patch) => {
+        const task = snapshot.tasks.find((item) => item.id === taskId)
+        if (!task || !patch.checklist) return
+        const changes = patch.checklist.filter((item) => (
+          task.checklist.find((current) => current.id === item.id)?.completed
+          !== item.completed
+        ))
+        await Promise.all(changes.map((item) =>
+          repository.setTaskChecklistItem(
+            scope,
+            taskId,
+            item.id,
+            item.completed,
+          ),
+        ))
+        await snapshotQuery.refetch()
+      },
+      uploadAttachments: async () => {
+        throw new Error('Use the authenticated attachment uploader.')
+      },
+      createMeeting: async (input) => {
+        const id = await repository.createMeeting(scope, input)
+        const refreshed = await snapshotQuery.refetch()
+        const meeting = refreshed.data?.meetings.find((item) => item.id === id)
+        if (!meeting) {
+          throw new Error('The created meeting could not be loaded.')
+        }
+        return meeting
+      },
+      respondToMeeting: async (meetingId, status) => {
+        await repository.respondToMeeting(scope, meetingId, status)
+        await snapshotQuery.refetch()
+      },
+      createAnnouncement: async (input) => {
+        const id = await repository.createAnnouncement(scope, input)
+        const refreshed = await snapshotQuery.refetch()
+        const announcement = refreshed.data?.announcements.find(
+          (item) => item.id === id,
+        )
+        if (!announcement) {
+          throw new Error('The created announcement could not be loaded.')
+        }
+        return announcement
+      },
+      saveOrganizationSettings: async (input) => {
+        await repository.saveOrganizationSettings(scope, input)
+        await snapshotQuery.refetch()
+      },
+      saveLocation: async (input) => {
+        const id = await repository.saveLocation(scope, input)
+        const refreshed = await snapshotQuery.refetch()
+        const location = refreshed.data?.locations.find(
+          (item) => item.id === id,
+        )
+        if (!location) {
+          throw new Error('The saved location could not be loaded.')
+        }
+        return location
+      },
+      saveMemberAssignment: async (input) => {
+        await repository.saveMemberAssignment(scope, input)
+        await snapshotQuery.refetch()
+      },
+      resolveAccessRequest: async (requestId, status) => {
+        await repository.resolveAccessRequest(scope, requestId, status)
+        await snapshotQuery.refetch()
+      },
+    }
+    return (
+      <ClinicContext.Provider value={productionValue}>
+        {children}
+      </ClinicContext.Provider>
+    )
+  }
+
+  return (
+    <ClinicContext.Provider value={previewValue}>
+      {children}
+    </ClinicContext.Provider>
+  )
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
