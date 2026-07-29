@@ -1,0 +1,167 @@
+# Deployment runbook
+
+This runbook takes the tested `develop` branch to hosted development, staging,
+production, and store packaging. Do not use real staff data until the clinic
+approves the operational-only boundary, vendors, region, retention, backups,
+and incident response.
+
+## Environment order
+
+Use separate Supabase and Vercel projects for development, staging, and
+production. Never copy synthetic accounts, MFA bypass rows, or
+`ATTACHMENT_SCAN_MODE=dev_bypass` into staging or production.
+
+Promote one reviewed commit through these environments:
+
+1. Hosted development with synthetic accounts.
+2. Staging with production controls and no real messages.
+3. Production after approval and recovery evidence.
+
+## Supabase
+
+Apply all tracked migrations. Deploy both attachment functions and
+`send-operational-notification` with JWT verification enabled. Create both
+private 10 MiB buckets from `supabase/config.toml`.
+
+Set these server-only finalizer secrets in development:
+
+```text
+ATTACHMENT_SCAN_MODE=dev_bypass
+```
+
+Set these server-only secrets in staging and production:
+
+```text
+ATTACHMENT_SCAN_MODE=clamav
+ATTACHMENT_SCANNER_URL=https://SCANNER_HOST/scan
+ATTACHMENT_SCANNER_SECRET=RANDOM_256_BIT_VALUE
+VAPID_PUBLIC_KEY=PUBLIC_WEB_PUSH_KEY
+VAPID_PRIVATE_KEY=SERVER_ONLY_WEB_PUSH_KEY
+VAPID_SUBJECT=mailto:APP_OWNER_ADDRESS
+```
+
+The scanner URL and secret must never use a `VITE_` name. Rotate the shared
+secret after staff changes, suspected exposure, or a scanner access incident.
+
+## Test accounts and employees
+
+The hosted development project contains the full 14-account matrix. Twelve
+accounts have verified TOTP factors, the dedicated AAL1 account remains
+without MFA, and the bypass account has a six-day development exception.
+Real hosted sessions passed for all 14 authorization scenarios.
+
+The provisioner uses the Supabase Auth Admin API. Set the URL and service-role
+key only for the command process. Do not save the service-role key in a browser
+environment file. Use the following command only to rebuild another approved
+development environment.
+
+Create the 14-account development matrix:
+
+```powershell
+$env:SUPABASE_URL = "https://PROJECT.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY = "SERVER_ONLY_VALUE"
+$env:PROVISIONING_ENVIRONMENT = "development"
+npm run provision:test-accounts
+Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY
+```
+
+The generated credential file is ignored by Git. It contains the hosted TOTP
+test secrets. Store it in the approved development password manager after the
+test run.
+
+Copy `scripts/employee-accounts.example.json` to the ignored
+`.employee-accounts.local.json` file. Add only existing employees, then run:
+
+```powershell
+$env:ALLOW_PRODUCTION_PROVISIONING = "true"
+npm run provision:employees
+```
+
+Review every role, location, department, expiry, and email before production.
+The command is idempotent, but it is privileged.
+
+## Attachment scanner
+
+The `scanner/` image contains ClamAV and a small authenticated scan API. Build
+and test it with:
+
+```powershell
+npm run scanner:build
+```
+
+Publish the image by digest to the approved registry. Deploy it with 2 GiB or
+more memory, a startup probe on `/health`, the shared secret from a secret
+manager, and no browser CORS access. The current Supabase integration uses an
+application bearer secret, so restrict ingress further with an approved
+gateway when the platform design supports service identity.
+
+Enable `ATTACHMENT_SCAN_MODE=clamav` only after the EICAR rejection test and a
+clean 7 MiB resumable upload both pass.
+
+## Vercel PWA
+
+Create a Vercel project from this repository and use:
+
+```text
+Build command: npm run build
+Output directory: dist
+Node.js: 22
+```
+
+Set these public production variables:
+
+```text
+VITE_REQUIRE_AUTH=true
+VITE_ENABLE_MFA_BYPASS=false
+VITE_ENABLE_ATTACHMENTS=true
+VITE_ENABLE_ZALO_LAUNCHER=true
+VITE_SUPABASE_URL=https://PROJECT.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=PUBLIC_KEY
+VITE_VAPID_PUBLIC_KEY=PUBLIC_WEB_PUSH_KEY
+```
+
+`vercel.json` supplies SPA fallback and security headers. Verify the content
+security policy, deep links, `sw.js` cache policy, install prompt, update
+prompt, session expiry, and network-only Supabase requests on the deployed
+HTTPS URL.
+
+The Zalo launcher opens `https://chat.zalo.me/` in a separate window. Verify
+the first sign-in, later Zalo session restore, popup handling, and native
+browser launch. Do not add a Zalo password or user token to Vercel or
+Supabase. Use the [Zalo integration decision](ZALO_INTEGRATION.md) for the
+tested product boundary.
+
+Deploy `send-operational-notification` with JWT verification. Enable
+notifications only after its VAPID secrets are set and a real device proves
+generic delivery, quiet hours, and invalid-subscription revocation.
+
+## PWABuilder and stores
+
+After the production HTTPS URL passes the PWA checks, enter it in
+[PWABuilder](https://www.pwabuilder.com/). Review manifest and service-worker
+warnings, then create the required store packages. Keep the package identity
+`com.yksg.messenger`.
+
+Use PWABuilder for the Android and Windows packages. Use the tracked Capacitor
+iOS project for Apple signing and native review. Store submission still needs
+organization accounts, signing keys, privacy disclosures, screenshots,
+reviewer access, supported-device tests, and an approved distribution method.
+
+No source-code change can complete those account and approval gates.
+
+## Release evidence
+
+Record the scoped React Router audit exception with each release:
+`npm audit --omit=dev` reports the RSC-mode CSRF advisory, but this application
+does not ship React Server Components, server actions, or the React Router
+server runtime. Re-evaluate the exception whenever React Router changes.
+
+Attach these results to the release:
+
+- Frontend tests, type-check, lint, and production build.
+- pgTAP, Realtime, resumable upload, promotion, signed download, and DB lint.
+- Hosted AAL2 tests for every allowed and denied test account.
+- Scanner clean-file and EICAR evidence.
+- Backup restoration and incident-response drill evidence.
+- PWA install, update, offline, and notification evidence on Android and iOS.
+- Store signing, privacy, and reviewer records.

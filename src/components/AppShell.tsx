@@ -1,3 +1,4 @@
+import * as ContextMenu from '@radix-ui/react-context-menu'
 import {
   Bell,
   CalendarDays,
@@ -14,15 +15,30 @@ import {
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useNativeBackHandler } from '../native/useNativePlatform'
+import {
+  useNativeBackHandler,
+  useNativePlatform,
+} from '../native/useNativePlatform'
 import { useClinic } from '../state/ClinicContext'
 import { useMessaging } from '../state/MessagingContext'
 import { ChannelCreationDialog } from './ChannelCreationDialog'
-import { LanguageSwitcher } from './LanguageSwitcher'
+import { DeveloperRolePanel } from './DeveloperRolePanel'
 import { MobileNavigation } from './MobileNavigation'
+import { PwaStatus } from './PwaStatus'
 import { IconButton } from './ui'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
-import { ZaloPersonalWidget } from './ZaloPersonalWidget'
+import { ZaloPersonalLauncher } from './ZaloPersonalLauncher'
+
+const mfaExpiryFormatters = {
+  'en-US': new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }),
+  'vi-VN': new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }),
+}
 
 export function AppShell({
   authEnabled = false,
@@ -34,6 +50,7 @@ export function AppShell({
   mfaBypassExpiresAt?: string | null
 }) {
   const { t, i18n } = useTranslation()
+  const { isNative } = useNativePlatform()
   const { hasPermission } = useClinic()
   const {
     channels,
@@ -84,75 +101,118 @@ export function AppShell({
     ?? (location.pathname.startsWith('/admin') ? t('nav.admin') : t('app.name'))
 
   return (
-    <div className="app-shell">
-      <a className="skip-link" href="#main-content">{t('common.skipToMain')}</a>
-      {mfaBypassed && mfaBypassExpiresAt ? (
-        <div className="development-mfa-banner" role="status">
-          <FlaskConical size={15} aria-hidden="true" />
-          <span>
-            {t('auth.mfaBypassActive', {
-              expires: new Intl.DateTimeFormat(i18n.language, {
-                dateStyle: 'short',
-                timeStyle: 'short',
-              }).format(new Date(mfaBypassExpiresAt)),
-            })}
-          </span>
-        </div>
-      ) : null}
-      <nav className="icon-rail" aria-label={t('nav.primary')}>
-        <button type="button" className="clinic-mark" onClick={() => navigate('/inbox')} aria-label={t('app.fullName')}>YK</button>
-        <div className="rail-main">
-          {navItems.map(({ to, label, icon: Icon, active }) => (
-            <NavLink key={`${to}-${label}`} to={to} className={`rail-link ${active ? 'is-active' : ''}`}>
-              <Icon size={21} aria-hidden="true" />
-              <span>{label}</span>
-            </NavLink>
-          ))}
-          {hasPermission('viewAdmin') ? (
-            <NavLink to="/admin/overview" className={({ isActive }) => `rail-link ${isActive ? 'is-active' : ''}`}>
-              <ShieldCheck size={21} aria-hidden="true" />
-              <span>{t('nav.admin')}</span>
-            </NavLink>
-          ) : null}
-        </div>
-        <div className="rail-footer">
-          <IconButton aria-label={t('nav.help')}><CircleHelp size={21} /></IconButton>
-          <IconButton aria-label={t('nav.settings')} onClick={() => navigate(hasPermission('viewAdmin') ? '/admin/settings' : '/inbox')}><Settings size={21} /></IconButton>
-        </div>
-      </nav>
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div className="app-shell">
+          <div
+            className="app-shell__context-boundary"
+            onContextMenu={(event) => {
+              if (isEditableContextTarget(event.target)) event.stopPropagation()
+            }}
+            onPointerDown={(event) => {
+              if (isEditableContextTarget(event.target)) event.stopPropagation()
+            }}
+          >
+            <a className="skip-link" href="#main-content">{t('common.skipToMain')}</a>
+            {mfaBypassed && mfaBypassExpiresAt ? (
+              <div className="development-mfa-banner" role="status">
+                <FlaskConical size={15} aria-hidden="true" />
+                <span>
+                  {t('auth.mfaBypassActive', {
+                    expires: mfaExpiryFormatters[
+                      i18n.language === 'vi-VN' ? 'vi-VN' : 'en-US'
+                    ].format(new Date(mfaBypassExpiresAt)),
+                  })}
+                </span>
+              </div>
+            ) : null}
+            <nav className="icon-rail" aria-label={t('nav.primary')}>
+              <div className="rail-main">
+                {navItems.map(({ to, label, icon: Icon, active }) => (
+                  <NavLink key={`${to}-${label}`} to={to} className={`rail-link ${active ? 'is-active' : ''}`}>
+                    <Icon size={21} aria-hidden="true" />
+                    <span>{label}</span>
+                  </NavLink>
+                ))}
+                {hasPermission('viewAdmin') ? (
+                  <NavLink to="/admin/overview" className={({ isActive }) => `rail-link ${isActive ? 'is-active' : ''}`}>
+                    <ShieldCheck size={21} aria-hidden="true" />
+                    <span>{t('nav.admin')}</span>
+                  </NavLink>
+                ) : null}
+              </div>
+              <div className="rail-footer">
+                <IconButton aria-label={t('nav.help')}><CircleHelp size={21} /></IconButton>
+                <IconButton aria-label={t('nav.settings')} onClick={() => navigate('/settings')}><Settings size={21} /></IconButton>
+              </div>
+            </nav>
 
-      <WorkspaceSidebar
-        open={sidebarOpen}
-        onClose={closeSidebar}
-        onCreateChannel={openCreateChannel}
-        authEnabled={authEnabled}
-      />
+            <WorkspaceSidebar
+              open={sidebarOpen}
+              onClose={closeSidebar}
+              onCreateChannel={openCreateChannel}
+              authEnabled={authEnabled}
+            />
 
-      <div className="app-main">
-        <div className="compact-topbar">
-          <IconButton ref={workspaceMenuTrigger} onClick={() => setSidebarOpen(true)} aria-label={t('nav.openNavigation')}><Menu size={21} /></IconButton>
-          <strong className="compact-title compact-title--app">{t('app.name')}</strong>
-          <strong className="compact-title compact-title--route">{compactTitle}</strong>
-          <div className="compact-actions">
-            <span className="notification-counter" aria-label={t('nav.notifications', { count: unreadTotal })}><Bell size={19} aria-hidden="true" />{unreadTotal > 0 ? <span>{unreadTotal}</span> : null}</span>
-            <LanguageSwitcher />
+            <div className="app-main">
+              <div className="compact-topbar">
+                <IconButton ref={workspaceMenuTrigger} onClick={() => setSidebarOpen(true)} aria-label={t('nav.openNavigation')}><Menu size={21} /></IconButton>
+                <strong className="compact-title compact-title--app">{t('app.name')}</strong>
+                <strong className="compact-title compact-title--route">{compactTitle}</strong>
+                <div className="compact-actions">
+                  <span className="notification-counter" aria-label={t('nav.notifications', { count: unreadTotal })}><Bell size={19} aria-hidden="true" />{unreadTotal > 0 ? <span>{unreadTotal}</span> : null}</span>
+                </div>
+              </div>
+              <main id="main-content" tabIndex={-1}>
+                <Outlet context={{ openCreateChannel }} />
+              </main>
+            </div>
+
+            <MobileNavigation unreadTotal={unreadTotal} chatPath="/channels" />
+
+            {supportsChannelCreation ? (
+              <ChannelCreationDialog
+                open={createChannelOpen}
+                onOpenChange={handleCreateChannelOpenChange}
+              />
+            ) : null}
+            {!authEnabled ? <DeveloperRolePanel /> : null}
+            {!isNative ? <PwaStatus /> : null}
+            {(!authEnabled
+              || import.meta.env.VITE_ENABLE_ZALO_LAUNCHER === 'true')
+              ? <ZaloPersonalLauncher />
+              : null}
+            <button type="button" className={`sidebar-scrim ${sidebarOpen ? 'is-visible' : ''}`} onClick={closeSidebar} aria-label={t('common.close')} />
           </div>
         </div>
-        <main id="main-content" tabIndex={-1}>
-          <Outlet context={{ openCreateChannel }} />
-        </main>
-      </div>
-
-      <MobileNavigation unreadTotal={unreadTotal} chatPath="/channels" />
-
-      {supportsChannelCreation ? (
-        <ChannelCreationDialog
-          open={createChannelOpen}
-          onOpenChange={handleCreateChannelOpenChange}
-        />
-      ) : null}
-      <ZaloPersonalWidget />
-      <button type="button" className={`sidebar-scrim ${sidebarOpen ? 'is-visible' : ''}`} onClick={closeSidebar} aria-label={t('common.close')} />
-    </div>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content
+          className="context-menu"
+          aria-label={t('contextMenu.navigation')}
+          collisionPadding={8}
+          loop
+        >
+          <ContextMenu.Label className="context-menu__label">
+            {t('contextMenu.navigation')}
+          </ContextMenu.Label>
+          {navItems.slice(0, 4).map(({ to, label, icon: Icon }) => (
+            <ContextMenu.Item
+              className="context-menu__item"
+              key={to}
+              onSelect={() => navigate(to)}
+            >
+              <Icon size={16} aria-hidden="true" />
+              {label}
+            </ContextMenu.Item>
+          ))}
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   )
+}
+
+function isEditableContextTarget(target: EventTarget | null) {
+  return target instanceof Element
+    && Boolean(target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'))
 }

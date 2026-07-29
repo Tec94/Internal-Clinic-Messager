@@ -3,7 +3,9 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ACCEPTED_ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_FILES } from '../services/uploadAdapter'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
 import type { Channel } from '../types/domain'
+import { AppSelect } from './AppSelect'
 import { Button, IconButton } from './ui'
 import { Checkbox } from './ui/motion/checkbox'
 import { Drawer } from './ui/motion/drawer'
@@ -37,7 +39,8 @@ export function TaskAssignmentDrawer({
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
-  const { users, currentUser, createTask, uploadAttachments } = useClinic()
+  const { users, currentUser, createTask } = useClinic()
+  const { uploadAttachments } = useMessaging()
   const memberUsers = useMemo(
     () => channel.memberIds.map((id) => users.find((user) => user.id === id)).filter(Boolean) as typeof users,
     [channel.memberIds, users],
@@ -79,9 +82,9 @@ export function TaskAssignmentDrawer({
     try {
       const files = uploadItems.flatMap((item) => item.file ? [item.file] : [])
       const uploaded = files.length
-        ? await uploadAttachments(files, { kind: 'task', channelId: channel.id })
+        ? await uploadAttachments(files, channel.id)
         : []
-      createTask({
+      await createTask({
         channelId: channel.id,
         title: title.trim(),
         ownerId,
@@ -124,11 +127,17 @@ export function TaskAssignmentDrawer({
               <span>{t('task.title')}</span>
               <input value={title} onChange={(event) => setTitle(event.target.value)} />
             </label>
-            <label className="form-field">
+            <label className="form-field" htmlFor="task-owner">
               <span>{t('common.owner')}</span>
-              <select value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>
-                {memberUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-              </select>
+              <AppSelect
+                id="task-owner"
+                value={ownerId}
+                onValueChange={setOwnerId}
+                options={memberUsers.map((user) => ({
+                  value: user.id,
+                  label: user.name,
+                }))}
+              />
             </label>
           </section>
           <fieldset className="task-drawer-section collaborator-picker">

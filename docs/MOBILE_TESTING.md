@@ -105,12 +105,17 @@ phone. Verify the following behavior before sharing a build:
 - The software keyboard keeps the chat composer visible.
 - Android Back closes the topmost sheet, then the workspace drawer, then
   navigates history, and minimizes the app only from the root route.
-- Meeting and Zalo documentation links open in the system browser.
+- Meeting links open in the system browser.
 - The status bar does not overlap the application and uses dark icons.
-- The Zalo trigger stays above the bottom tabs and its panel fits the viewport.
+- The Zalo launcher stays above the bottom tabs.
+- The Zalo launcher opens `https://chat.zalo.me/` in a separate
+  Zalo-controlled browser window.
+- The first use shows Zalo sign-in, and a later use can restore Zalo's own
+  session.
 
-The Zalo integration remains an Official Account website widget. Capacitor
-does not grant access to a user's private personal Zalo inbox.
+Capacitor does not receive a user's personal Zalo inbox. It only opens Zalo
+Web Chat through the existing native browser service. Read the
+[Zalo integration decision](ZALO_INTEGRATION.md) for this boundary.
 
 ## Troubleshooting
 

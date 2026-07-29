@@ -16,7 +16,6 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useNativeBackHandler } from '../native/useNativePlatform'
 import { useClinic } from '../state/ClinicContext'
-import { LanguageSwitcher } from './LanguageSwitcher'
 import { IconButton } from './ui'
 
 export function MobileNavigation({
@@ -83,15 +82,11 @@ export function MobileNavigation({
               <Dialog.Close asChild><NavLink to="/people"><Users size={20} />{t('nav.people')}</NavLink></Dialog.Close>
               {hasPermission('viewAdmin') ? <Dialog.Close asChild><NavLink to="/admin/overview"><ShieldCheck size={20} />{t('nav.admin')}</NavLink></Dialog.Close> : null}
               <button type="button" onClick={() => setHelpVisible((visible) => !visible)} aria-expanded={helpVisible}><CircleHelp size={20} />{t('nav.help')}</button>
-              <Dialog.Close asChild><NavLink to="/admin/settings"><Settings size={20} />{t('nav.settings')}</NavLink></Dialog.Close>
+              <Dialog.Close asChild><NavLink to="/settings"><Settings size={20} />{t('nav.settings')}</NavLink></Dialog.Close>
             </nav>
 
             {helpVisible ? <p className="mobile-help-copy" role="status">{t('mobile.helpBody')}</p> : null}
 
-            <footer className="mobile-more-sheet__footer">
-              <span>{t('common.language')}</span>
-              <LanguageSwitcher compact />
-            </footer>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

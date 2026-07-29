@@ -1,10 +1,20 @@
+# Dependencies and generated output
 node_modules/
 dist/
 coverage/
 playwright-report/
 test-results/
+.vite/
 *.tsbuildinfo
+
+# Local logs and operating-system files
+*.log
+.DS_Store
+Thumbs.db
+
+# Local secrets and account manifests
 .env.local
 .env
-e2e
-stitch_clinic_messenger_design_system
+.env.*.local
+.employee-accounts.local.json
+.test-accounts.local.json

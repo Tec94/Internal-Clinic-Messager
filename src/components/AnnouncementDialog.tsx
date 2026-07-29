@@ -36,6 +36,7 @@ export function AnnouncementDialog({
   } = useClinic()
   const [submitMode, setSubmitMode] = useState<'draft' | 'published'>('published')
   const [success, setSuccess] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const schema = useMemo(
     () =>
@@ -81,26 +82,33 @@ export function AnnouncementDialog({
   const organizationWide = watch('organizationWide')
   const canSendOrganization = hasPermission('sendOrganizationAnnouncement')
 
-  const submit = (value: AnnouncementForm) => {
+  const submit = async (value: AnnouncementForm) => {
     const audience: AnnouncementAudience = {
       organizationWide: canSendOrganization && value.organizationWide,
       locationIds: canSendOrganization && value.organizationWide ? [] : value.locationIds,
       departmentIds: canSendOrganization && value.organizationWide ? [] : value.departmentIds,
     }
-    createAnnouncement({
-      title: value.title,
-      body: value.body,
-      audience,
-      priority: value.priority,
-      requireAcknowledgement: value.requireAcknowledgement,
-      status: submitMode,
-    })
-    setSuccess(true)
-    window.setTimeout(() => {
-      setSuccess(false)
-      reset()
-      onOpenChange(false)
-    }, 550)
+    setSubmitError('')
+    try {
+      await createAnnouncement({
+        title: value.title,
+        body: value.body,
+        audience,
+        priority: value.priority,
+        requireAcknowledgement: value.requireAcknowledgement,
+        status: submitMode,
+      })
+      setSuccess(true)
+      window.setTimeout(() => {
+        setSuccess(false)
+        reset()
+        onOpenChange(false)
+      }, 550)
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : t('announcement.createFailed'),
+      )
+    }
   }
 
   return (
@@ -113,6 +121,7 @@ export function AnnouncementDialog({
             <Dialog.Close asChild><IconButton aria-label={t('common.close')}><X size={20} /></IconButton></Dialog.Close>
           </header>
           {success ? <div className="success-banner" role="status">{t('announcement.sent')}</div> : null}
+          {submitError ? <p className="form-error" role="alert">{submitError}</p> : null}
           <form className="announcement-form" onSubmit={handleSubmit(submit)}>
             <fieldset className="audience-fieldset">
               <legend>{t('announcement.targetAudience')}</legend>

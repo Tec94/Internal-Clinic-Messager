@@ -4,14 +4,14 @@ YKSG is a role-aware communication frontend for Phòng Khám Y Khoa Sài Gòn. I
 combines a low-noise, three-pane workspace with chat, tasks, documents,
 meetings, people, announcements, and scoped administration.
 
-> **Note:** This remains a preview application. The repository now includes a
-> local Supabase identity, onboarding, core messaging, private message
-> attachments, RLS, and Realtime slice. Authenticated Chat and Inbox use those
-> repository boundaries. Unfinished modules and the non-authenticated preview
-> still use synthetic data. The six tracked migrations are deployed to the
-> user-designated development backend, but real hosted staff-session testing
-> is incomplete. This is not production clinical messaging or a regulatory
-> compliance control.
+> **Note:** The `develop` branch contains the durable Supabase application and
+> the non-authenticated preview. Authenticated Chat, Inbox, Tasks, Meetings,
+> directory, announcements, settings, and supported administration use
+> database repositories. Thirteen migrations are deployed to the hosted
+> development backend. The 14-account hosted authorization matrix is
+> provisioned and verified. Store approval, production secrets, scanner
+> deployment, backup evidence, and device acceptance remain release gates.
+> This is not a regulatory compliance control.
 
 ## Run the application
 
@@ -26,8 +26,8 @@ PowerShell script execution is restricted.
 ## Explore the product
 
 The primary navigation rail opens module-specific sidebars for Chat, Tasks,
-Documents, Meetings, and People. Use the persona selector at the bottom of the
-workspace sidebar to test each permission scope.
+Documents, Meetings, and People. In preview mode, use the floating development
+panel to test each permission scope.
 
 - **Phạm Ngọc Linh** represents a regular employee.
 - **Võ Thành Nam** represents staff assigned to both locations.
@@ -36,10 +36,9 @@ workspace sidebar to test each permission scope.
 - **Nguyễn Minh Khang** represents the organization owner.
 - **Đỗ Minh Quân** represents a time-boxed contractor.
 
-Vietnamese is the first-run locale. The **EN** and **VI** controls switch
-between complete interface catalogs. The workspace uses the fixed
-Graphite + Indigo theme so the visual system stays consistent across the
-preview.
+Vietnamese is the first-run locale. Change language in Settings. Authenticated
+preferences follow the account across supported devices. The workspace uses
+the fixed Graphite + Indigo theme.
 
 Meeting links from Google Meet and Zoom open a confirmation dialog before the
 app posts an invitation. Accepted invitations appear in the internal Meetings
@@ -59,12 +58,13 @@ attachments, and short-lived downloads. Preview and unfinished modules retain
 
 Read [the product architecture](docs/PRODUCT_ARCHITECTURE.md) for channel
 taxonomy, scoped roles, lifecycle rules, administrative governance, and the
-operational-only data boundary. The original Stitch exports remain unchanged
-under `stitch_clinic_messenger_design_system/` as visual source material.
+operational-only data boundary.
 
 Read [the production roadmap](docs/PRODUCTION_ROADMAP.md) for the recommended
 database schema, RLS authorization boundary, auth and onboarding flows, PWA
 pilot, and the path from the existing Capacitor wrappers to store releases.
+Use [the deployment runbook](docs/DEPLOYMENT.md) for environment promotion and
+[the mobile testing guide](docs/MOBILE_TESTING.md) for Capacitor checks.
 
 ## Operational-only boundary
 
@@ -79,23 +79,18 @@ content. This behavior intentionally warns rather than blocks.
 Staffing screens display imported snapshots with capture times. The product
 doesn't monitor live intake capacity, throughput, or diversion status.
 
-## Zalo chat widget
+## Personal Zalo launcher
 
-The bottom-right Zalo entry point is ready for the supported Zalo Official
-Account chat widget. Copy `.env.example` to `.env.local` and set the public
-`VITE_ZALO_OA_ID` value from the Official Account configuration. Restart the
-Vite server after changing the value. You can also set the optional
-`VITE_ZALO_WELCOME_MESSAGE`.
+The bottom-right Zalo control opens
+[Zalo Web Chat](https://chat.zalo.me/) in a separate Zalo-controlled window.
+Zalo requests sign-in on first use and can restore its own session on later
+visits. YKSG does not store a Zalo password, token, contact, or message.
 
-The browser receives only the OA ID and welcome message. Never add an OA access
-token, app secret, or webhook credential to a `VITE_` variable. Keep those on a
-future server-side integration.
-
-Zalo's widget supports conversations between a website visitor and the clinic's
-Official Account. It does not expose private Zalo inbox chats or messages from a
-personal Zalo account to this workspace. Read the
-[Zalo Chat Widget documentation](https://developers.zalo.me/docs/social/zalo-chat-widget)
-before connecting the account.
+Set `VITE_ENABLE_ZALO_LAUNCHER=true` to show the control on authenticated
+routes. The current Zalo APIs do not expose a personal inbox or existing chat
+history to another application. Read the
+[Zalo integration decision](docs/ZALO_INTEGRATION.md) for the capability
+review, security boundary, and device acceptance checks.
 
 ## Development MFA bypass
 
@@ -107,9 +102,10 @@ is active.
 
 The repository keeps the client flag off by default. This checkout enables it
 in the ignored `.env.local` file. The connected development backend currently
-allowlists its sole test identity until August 2, 2026 at 09:50 UTC. Bypass
-entries can't last longer than seven days, record first use per Auth session,
-and don't grant access to suspended, expired, outsider, or cross-tenant users.
+has two expiring bypass entries. The synthetic bypass account expires on
+August 3, 2026 at 16:13 UTC. Bypass entries can't last longer than seven days,
+record first use per Auth session, and don't grant access to suspended,
+expired, outsider, or cross-tenant users.
 
 > **Warning:** Never add a bypass row or enable
 > `VITE_ENABLE_MFA_BYPASS` in staging or production. Delete the private
@@ -119,19 +115,20 @@ and don't grant access to suspended, expired, outsider, or cross-tenant users.
 
 Authenticated message attachments use private quarantine and available
 Storage buckets. Keep `VITE_ENABLE_ATTACHMENTS=false` until the target backend
-has both buckets, the attachment migration, and both Edge Functions.
+has both buckets, the attachment migration, and both attachment Edge
+Functions.
 
-For the disposable hosted development project, set the server-only Edge
-Function secret `ATTACHMENT_SCAN_MODE=dev_bypass`, complete a real AAL2 upload
-and download test, and then set `VITE_ENABLE_ATTACHMENTS=true` in that
-development client. Never use `dev_bypass` in staging or production. Those
-environments require an approved malware scanner.
+For the disposable hosted development project, the server-only Edge Function
+secret can use `ATTACHMENT_SCAN_MODE=dev_bypass`. Never use that value in
+staging or production. The repository includes a fail-closed ClamAV path and a
+tested scanner container; deploy and approve it before enabling production
+attachments.
 
 ## Test native builds
 
 The tracked Capacitor projects use the app name `YKSG Messenger`, the app ID
 `com.yksg.messenger`, and the production `dist` directory. Read the
-[mobile testing guide](docs/mobile-testing.md) for Android Studio setup, the
+[mobile testing guide](docs/MOBILE_TESTING.md) for Android Studio setup, the
 Mac and Xcode handoff, emulator and device workflows, debug builds, native
 smoke tests, and troubleshooting.
 
@@ -160,13 +157,9 @@ The Playwright suite covers 1280×1024 desktop, 1024×768 compact desktop,
 768×1024 tablet, 390×844 phone, 320×568 small phone, and 844×390 touch
 landscape viewports using the fixed Graphite + Indigo theme.
 
-## Next steps
+## Deployment
 
-Configure the development-only attachment scan-mode secret, create approved
-synthetic development users through the Auth Admin API, and run hosted sign-in,
-TOTP AAL2, onboarding, Realtime, and attachment checks. Leaked-password
-protection remains a deferred Free-plan limitation. Durable Tasks,
-staff-directory sync, malware scanning, calendar integrations, and the external
-scheduling integration remain after that boundary. Every backend must
-independently enforce the frontend permission
-matrix.
+Use [the deployment runbook](docs/DEPLOYMENT.md) for Supabase promotion,
+employee and test-account provisioning, scanner deployment, Vercel settings,
+PWABuilder packaging, and release evidence. Leaked-password protection remains
+an accepted Free-plan development limitation and a production-plan revisit.

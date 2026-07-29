@@ -11,7 +11,7 @@ export function NativeExternalLink({
   children,
   href,
   onClick,
-  rel = 'noreferrer',
+  rel = 'noopener noreferrer',
   target = '_blank',
   ...props
 }: PropsWithChildren<NativeExternalLinkProps>) {

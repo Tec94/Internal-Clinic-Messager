@@ -12,7 +12,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-react'
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ChannelMembersDrawer } from '../components/ChannelMembersDrawer'
@@ -28,6 +28,12 @@ import { useMessaging } from '../state/MessagingContext'
 import type { MeetingCandidate } from '../types/domain'
 import { MeetingConfirmationDialog } from '../components/MeetingConfirmationDialog'
 import { useNativeBackHandler } from '../native/useNativePlatform'
+
+function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+  event.preventDefault()
+  event.currentTarget.form?.requestSubmit()
+}
 
 export function ChannelPage() {
   const { channelId } = useParams()
@@ -208,10 +214,22 @@ export function ChannelPage() {
     }
   }
 
-  const finishMeetingCreate = (input: Parameters<typeof createMeeting>[0]) => {
+  const finishMeetingCreate = async (
+    input: Parameters<typeof createMeeting>[0],
+  ) => {
     if (!canSend || !supportsIntegrations) return
-    createMeeting(input)
-    clearComposer()
+    setSending(true)
+    setComposerError('')
+    try {
+      await createMeeting(input)
+      clearComposer()
+    } catch (error) {
+      setComposerError(
+        error instanceof Error ? error.message : t('meeting.createFailed'),
+      )
+    } finally {
+      setSending(false)
+    }
   }
 
   const clearComposer = () => {
@@ -253,9 +271,12 @@ export function ChannelPage() {
         <div className="thread-scroll"><MessageThread channel={channel} onAssignTask={supportsIntegrations ? openTaskDrawer : undefined} /></div>
 
         <div className="composer-region">
-          <form className={`composer ${urgent ? 'composer--urgent' : ''}`} onSubmit={submitMessage}>
+          <form
+            className={`composer ${supportsAttachments ? 'composer--attachments-enabled' : ''} ${urgent ? 'composer--urgent' : ''}`}
+            onSubmit={submitMessage}
+          >
             {supportsAttachments ? <IconButton aria-label={t('channel.attachFile')} onClick={() => setAttachmentsOpen((value) => !value)} disabled={!canSend}><Paperclip size={20} /></IconButton> : null}
-            <label><span className="sr-only">{t('channel.messagePlaceholder', { channel: channel.name })}</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={canSend ? t('channel.messagePlaceholder', { channel: channel.name }) : t('channel.viewOnly')} rows={1} disabled={!canSend} /></label>
+            <label><span className="sr-only">{t('channel.messagePlaceholder', { channel: channel.name })}</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleComposerKeyDown} placeholder={canSend ? t('channel.messagePlaceholder', { channel: channel.name }) : t('channel.viewOnly')} rows={1} disabled={!canSend} /></label>
             <div className="composer-tools">
               <IconButton className="composer-secondary-action" aria-label="Mention" disabled={!canSend}><AtSign size={18} /></IconButton>
               <IconButton className="composer-secondary-action" aria-label="Emoji" disabled={!canSend}><Smile size={18} /></IconButton>

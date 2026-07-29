@@ -21,6 +21,13 @@ vi.mock('../state/AuthContext', () => ({
       organizationId: 'organization-1',
     },
   }),
+  useOptionalAuth: () => ({
+    status: 'active',
+    membership: {
+      id: 'member-1',
+      organizationId: 'organization-1',
+    },
+  }),
 }))
 
 describe('authenticated messaging context', () => {

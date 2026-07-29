@@ -163,8 +163,8 @@ export function MessagingProvider({
         && (channelsQuery.isPending || membersQuery.isPending),
       error: error instanceof Error ? error.message : null,
       supportsAttachments: attachmentsEnabled,
-      supportsChannelCreation: false,
-      supportsIntegrations: false,
+      supportsChannelCreation: true,
+      supportsIntegrations: true,
       canSendMessage: (channelId) => (
         productionChannels.find((channel) => channel.id === channelId)
           ?.canSend ?? false
@@ -433,6 +433,8 @@ function mapMessage(message: MessagingMessage): Message {
     body: message.body,
     createdAt: message.createdAt,
     isUrgent: message.isUrgent,
+    taskId: message.taskId,
+    meetingId: message.meetingId,
     attachmentIds: message.attachmentIds,
     attachments: message.attachments.map((attachment) => ({
       id: attachment.id,

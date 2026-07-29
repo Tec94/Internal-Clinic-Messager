@@ -18,7 +18,8 @@ Deno.serve(async (request: Request) => {
   let attachmentId: string | undefined
   try {
     attachmentId = await readAttachmentId(request)
-    if (Deno.env.get('ATTACHMENT_SCAN_MODE') !== 'dev_bypass') {
+    const scanMode = Deno.env.get('ATTACHMENT_SCAN_MODE')
+    if (scanMode !== 'dev_bypass' && scanMode !== 'clamav') {
       throw new RequestError(
         503,
         'Attachment promotion is disabled until a scanner is configured.',
@@ -84,6 +85,24 @@ Deno.serve(async (request: Request) => {
       )
     }
 
+    let scanResult: { scanner: string; signature: string } | null = null
+    if (scanMode === 'clamav') {
+      scanResult = await scanAttachment(
+        admin,
+        authorizedAttachment,
+      )
+      if (!scanResult) {
+        await admin.storage
+          .from(QUARANTINE_BUCKET)
+          .remove([authorizedAttachment.object_path])
+        await admin.rpc('reject_attachment_upload', {
+          target_attachment_id: authorizedAttachment.id,
+          target_reason: 'malware_scan_rejected',
+        })
+        throw new RequestError(422, 'The attachment failed the safety scan.')
+      }
+    }
+
     const { error: moveError } = await admin.storage
       .from(QUARANTINE_BUCKET)
       .move(
@@ -95,11 +114,17 @@ Deno.serve(async (request: Request) => {
       throw new RequestError(502, 'The attachment could not be promoted.')
     }
 
-    const { data: completed, error: completionError } = await admin
-      .rpc('complete_attachment_dev_bypass', {
-        target_attachment_id: authorizedAttachment.id,
-      })
-      .single()
+    const completion = scanMode === 'dev_bypass'
+      ? admin.rpc('complete_attachment_dev_bypass', {
+          target_attachment_id: authorizedAttachment.id,
+        })
+      : admin.rpc('complete_attachment_clean', {
+          target_attachment_id: authorizedAttachment.id,
+          target_scanner: scanResult?.scanner ?? 'clamav',
+          target_signature: scanResult?.signature ?? 'unknown',
+        })
+    const { data: completed, error: completionError } =
+      await completion.single()
     if (completionError || !completed) {
       const { error: rollbackError } = await admin.storage
         .from(AVAILABLE_BUCKET)
@@ -137,4 +162,54 @@ function splitObjectPath(objectPath: string) {
     throw new RequestError(422, 'The attachment object path is invalid.')
   }
   return { folder: segments.join('/'), fileName }
+}
+
+async function scanAttachment(
+  admin: ReturnType<typeof createRequestClients>['admin'],
+  attachment: AttachmentRow,
+) {
+  const endpoint = Deno.env.get('ATTACHMENT_SCANNER_URL')?.trim()
+  const secret = Deno.env.get('ATTACHMENT_SCANNER_SECRET')?.trim()
+  if (!endpoint || !secret || !endpoint.startsWith('https://')) {
+    throw new RequestError(503, 'The attachment scanner is not configured.')
+  }
+  const { data, error } = await admin.storage
+    .from(QUARANTINE_BUCKET)
+    .createSignedUrl(attachment.object_path, 60)
+  if (error || !data?.signedUrl) {
+    throw new RequestError(502, 'The attachment scan could not be prepared.')
+  }
+  let response: Response
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        attachmentId: attachment.id,
+        url: data.signedUrl,
+        sizeBytes: attachment.size_bytes,
+        mimeType: attachment.mime_type,
+      }),
+      signal: AbortSignal.timeout(45_000),
+    })
+  } catch {
+    throw new RequestError(502, 'The attachment scanner is unavailable.')
+  }
+  if (!response.ok) {
+    throw new RequestError(502, 'The attachment scanner rejected the request.')
+  }
+  const result = await response.json() as {
+    clean?: unknown
+    scanner?: unknown
+    signature?: unknown
+  }
+  if (result.clean !== true) return null
+  return {
+    scanner: typeof result.scanner === 'string' ? result.scanner : 'clamav',
+    signature:
+      typeof result.signature === 'string' ? result.signature : 'clean',
+  }
 }

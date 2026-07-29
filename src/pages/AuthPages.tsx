@@ -2,7 +2,7 @@ import { CircleAlert, ClipboardCheck, KeyRound, ShieldCheck } from 'lucide-react
 import { type FormEvent, type PropsWithChildren, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { LanguageSwitcher } from '../components/LanguageSwitcher'
+import { AppSelect } from '../components/AppSelect'
 import { Button } from '../components/ui'
 import { useAuth } from '../state/AuthContext'
 import { supabase } from '../utils/supabase'
@@ -276,15 +276,17 @@ export function OnboardingPage() {
             onChange={(event) => setFullName(event.target.value)}
           />
         </label>
-        <label>
+        <label htmlFor="onboarding-locale">
           {t('auth.preferredLanguage')}
-          <select
+          <AppSelect
+            id="onboarding-locale"
             value={locale}
-            onChange={(event) => setLocale(event.target.value)}
-          >
-            <option value="vi-VN">{t('locale.vietnamese')}</option>
-            <option value="en-US">{t('locale.english')}</option>
-          </select>
+            onValueChange={setLocale}
+            options={[
+              { value: 'vi-VN', label: t('locale.vietnamese') },
+              { value: 'en-US', label: t('locale.english') },
+            ]}
+          />
         </label>
         <label className="auth-check">
           <input
@@ -425,7 +427,6 @@ function AuthFrame({ children }: PropsWithChildren) {
       <section className="auth-card" aria-label={t('auth.staffAccess')}>
         <header className="auth-card__header">
           <span className="auth-brand">YKSG</span>
-          <LanguageSwitcher compact />
         </header>
         {children}
         <small>{t('auth.operationalOnly')}</small>

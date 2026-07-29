@@ -13,6 +13,9 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev -- --mode test --host 127.0.0.1 --port 4173',
     url: 'http://127.0.0.1:4173',
+    env: {
+      VITE_REQUIRE_AUTH: 'false',
+    },
     reuseExistingServer: !process.env.CI,
   },
   projects: [

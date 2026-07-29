@@ -158,8 +158,7 @@ describe('Supabase auth routes', () => {
     expect(screen.queryByLabelText('Role')).not.toBeInTheDocument()
   })
 
-  it('routes incomplete members into onboarding', async () => {
-    const user = userEvent.setup()
+  it('opens active members without the deferred onboarding flow', async () => {
     restoreSession()
     mockMemberships([
       membership({
@@ -169,25 +168,10 @@ describe('Supabase auth routes', () => {
 
     renderAuthenticatedApp()
 
-    expect(
-      await screen.findByRole('heading', { name: 'Finish account setup' }),
-    ).toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Full name'), 'Verified Staff')
-    await user.click(screen.getByLabelText(/I accept the current/i))
-    await user.click(screen.getByRole('button', { name: 'Complete setup' }))
-
-    expect(database.rpc).toHaveBeenCalledWith(
-      'complete_staff_onboarding',
-      expect.objectContaining({
-        target_member_id: '20000000-0000-0000-0000-000000000001',
-        target_full_name: 'Verified Staff',
-        target_locale: 'en-US',
-        target_quiet_hours_start: null,
-        target_quiet_hours_end: null,
-        target_notifications_enabled: false,
-      }),
-    )
+    expect(await screen.findByRole('button', { name: 'Sign out' }))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Finish account setup' }))
+      .not.toBeInTheDocument()
   })
 })
 
