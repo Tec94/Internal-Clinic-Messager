@@ -22,7 +22,15 @@ import type {
   SaveMemberAssignmentInput,
   SaveOrganizationSettingsInput,
   Task,
+  TaskDetail,
+  TaskEvent,
+  TaskSchedule,
+  TaskStatus,
+  TaskSummary,
+  TaskTemplate,
+  TaskTransitionAction,
   User,
+  WorkAgendaItem,
 } from '../types/domain'
 
 export interface ClinicSnapshot {
@@ -35,6 +43,9 @@ export interface ClinicSnapshot {
   channels: Channel[]
   memberships: ChannelMembership[]
   tasks: Task[]
+  taskEvents: TaskEvent[]
+  taskTemplates: TaskTemplate[]
+  taskSchedules: TaskSchedule[]
   attachments: Attachment[]
   meetings: Meeting[]
   meetingResponses: MeetingResponse[]
@@ -48,8 +59,42 @@ interface RepositoryScope {
   memberId: string
 }
 
+export interface TaskListFilters {
+  search?: string
+  ownerId?: string
+  createdById?: string
+  channelId?: string
+  status?: TaskStatus
+  dueFrom?: string
+  dueTo?: string
+}
+
+export interface TaskPage {
+  items: TaskSummary[]
+  nextCursor?: string
+}
+
+export interface WorkAgendaPage {
+  items: WorkAgendaItem[]
+  nextCursor?: string
+}
+
 export interface SupabaseClinicRepository {
   loadSnapshot: (scope: RepositoryScope) => Promise<ClinicSnapshot>
+  listTasks: (
+    scope: RepositoryScope,
+    filters?: TaskListFilters,
+    cursor?: string,
+    limit?: number,
+  ) => Promise<TaskPage>
+  getTask: (scope: RepositoryScope, taskId: string) => Promise<TaskDetail>
+  listWorkAgenda: (
+    scope: RepositoryScope,
+    startsAt: string,
+    endsAt: string,
+    cursor?: string,
+    limit?: number,
+  ) => Promise<WorkAgendaPage>
   createChannel: (
     scope: RepositoryScope,
     input: CreateChannelInput,
@@ -63,6 +108,30 @@ export interface SupabaseClinicRepository {
     taskId: string,
     itemId: string,
     completed: boolean,
+  ) => Promise<void>
+  respondToTask: (
+    scope: RepositoryScope,
+    taskId: string,
+    response: 'accept' | 'decline',
+    reason?: string,
+  ) => Promise<void>
+  transitionTask: (
+    scope: RepositoryScope,
+    taskId: string,
+    action: TaskTransitionAction,
+    reason?: string,
+    reopenItemId?: string,
+  ) => Promise<void>
+  reassignTask: (
+    scope: RepositoryScope,
+    taskId: string,
+    ownerId: string,
+    reason: string,
+  ) => Promise<void>
+  setTaskScheduleActive: (
+    scope: RepositoryScope,
+    scheduleId: string,
+    active: boolean,
   ) => Promise<void>
   createMeeting: (
     scope: RepositoryScope,
@@ -96,6 +165,115 @@ export interface SupabaseClinicRepository {
   ) => Promise<void>
 }
 
+const taskSummaryColumns = `
+  id,
+  title,
+  channel_id,
+  owner_member_id,
+  created_by_member_id,
+  due_at,
+  status,
+  status_reason,
+  status_changed_at,
+  task_checklist_items(completed)
+`
+
+interface TaskSummaryRow {
+  id: string
+  title: string
+  channel_id: string
+  owner_member_id: string
+  created_by_member_id: string
+  due_at: string
+  status: string
+  status_reason: string | null
+  status_changed_at: string
+  task_checklist_items: Array<{ completed: boolean }> | null
+}
+
+interface TaskRecordRow extends Omit<TaskSummaryRow, 'task_checklist_items'> {
+  source_message_id: string | null
+  accepted_at: string | null
+  declined_at: string | null
+  blocked_at: string | null
+  completed_at: string | null
+  canceled_at: string | null
+  template_id: string | null
+  schedule_id: string | null
+  occurrence_due_at: string | null
+}
+
+function taskSummaryFromRow(row: TaskSummaryRow): TaskSummary {
+  const checklist = row.task_checklist_items ?? []
+  return {
+    id: row.id,
+    title: row.title,
+    channelId: row.channel_id,
+    ownerId: row.owner_member_id,
+    createdById: row.created_by_member_id,
+    dueAt: row.due_at,
+    status: mapTaskStatus(row.status),
+    statusReason: row.status_reason ?? undefined,
+    statusChangedAt: row.status_changed_at,
+    completedItems: checklist.filter((item) => item.completed).length,
+    totalItems: checklist.length,
+  }
+}
+
+function taskCursor(row: Pick<TaskSummaryRow, 'due_at' | 'id'>) {
+  return `${row.due_at}::${row.id}`
+}
+
+function parseTaskCursor(cursor: string) {
+  const separator = cursor.lastIndexOf('::')
+  if (separator < 1) throw new Error('The task cursor is invalid.')
+  return {
+    dueAt: cursor.slice(0, separator),
+    id: cursor.slice(separator + 2),
+  }
+}
+
+async function queryTaskPage(
+  client: typeof supabase,
+  scope: RepositoryScope,
+  filters: TaskListFilters,
+  cursor: string | undefined,
+  requestedLimit: number,
+): Promise<TaskPage> {
+  const limit = Math.max(1, Math.min(50, requestedLimit))
+  let query = client
+    .from('tasks')
+    .select(taskSummaryColumns)
+    .eq('organization_id', scope.organizationId)
+    .is('archived_at', null)
+    .order('due_at')
+    .order('id')
+    .limit(limit + 1)
+
+  if (filters.search?.trim()) query = query.ilike('title', `%${filters.search.trim()}%`)
+  if (filters.ownerId) query = query.eq('owner_member_id', filters.ownerId)
+  if (filters.createdById) query = query.eq('created_by_member_id', filters.createdById)
+  if (filters.channelId) query = query.eq('channel_id', filters.channelId)
+  if (filters.status) query = query.eq('status', mapTaskStatusToDatabase(filters.status))
+  if (filters.dueFrom) query = query.gte('due_at', filters.dueFrom)
+  if (filters.dueTo) query = query.lt('due_at', filters.dueTo)
+  if (cursor) {
+    const parsed = parseTaskCursor(cursor)
+    query = query.or(`due_at.gt.${parsed.dueAt},and(due_at.eq.${parsed.dueAt},id.gt.${parsed.id})`)
+  }
+
+  const { data, error } = await query
+  if (error) throw new Error(`Could not load tasks: ${error.message}`)
+  const rows = (data ?? []) as TaskSummaryRow[]
+  const pageRows = rows.slice(0, limit)
+  return {
+    items: pageRows.map(taskSummaryFromRow),
+    nextCursor: rows.length > limit && pageRows.length
+      ? taskCursor(pageRows[pageRows.length - 1])
+      : undefined,
+  }
+}
+
 export function createSupabaseClinicRepository(
   client: typeof supabase = supabase,
 ): SupabaseClinicRepository {
@@ -118,6 +296,10 @@ export function createSupabaseClinicRepository(
         tasksResult,
         collaboratorsResult,
         checklistResult,
+        taskEventsResult,
+        templatesResult,
+        templateItemsResult,
+        schedulesResult,
         taskAttachmentsResult,
         attachmentsResult,
         meetingsResult,
@@ -232,10 +414,21 @@ export function createSupabaseClinicRepository(
             id,
             channel_id,
             owner_member_id,
+            created_by_member_id,
             title,
             due_at,
             status,
-            source_message_id
+            source_message_id,
+            accepted_at,
+            declined_at,
+            blocked_at,
+            completed_at,
+            canceled_at,
+            status_reason,
+            status_changed_at,
+            template_id,
+            schedule_id,
+            occurrence_due_at
           `)
           .eq('organization_id', scope.organizationId)
           .is('archived_at', null)
@@ -246,9 +439,31 @@ export function createSupabaseClinicRepository(
           .eq('organization_id', scope.organizationId),
         client
           .from('task_checklist_items')
-          .select('id, task_id, label, completed, position')
+          .select('id, task_id, label, completed, completed_by_member_id, completed_at, position')
           .eq('organization_id', scope.organizationId)
           .order('position'),
+        client
+          .from('task_events')
+          .select('id, task_id, actor_member_id, event_type, from_status, to_status, reason, metadata, created_at')
+          .eq('organization_id', scope.organizationId)
+          .order('created_at'),
+        client
+          .from('task_templates')
+          .select('id, created_by_member_id, name, title, visibility, location_id, department_id')
+          .eq('organization_id', scope.organizationId)
+          .is('archived_at', null)
+          .order('name'),
+        client
+          .from('task_template_items')
+          .select('template_id, label, position')
+          .eq('organization_id', scope.organizationId)
+          .order('position'),
+        client
+          .from('task_schedules')
+          .select('id, template_id, created_by_member_id, channel_id, owner_member_id, frequency, weekdays, month_day, due_local_time, timezone, create_lead_minutes, next_due_at, active')
+          .eq('organization_id', scope.organizationId)
+          .is('archived_at', null)
+          .order('next_due_at'),
         client
           .from('task_attachments')
           .select('task_id, attachment_id')
@@ -547,6 +762,7 @@ export function createSupabaseClinicRepository(
           title: task.title,
           channelId: task.channel_id,
           ownerId: task.owner_member_id,
+          createdById: task.created_by_member_id,
           collaboratorIds: (collaboratorsResult.data ?? [])
             .filter((row) => row.task_id === task.id)
             .map((row) => row.member_id),
@@ -558,11 +774,61 @@ export function createSupabaseClinicRepository(
               id: item.id,
               label: item.label,
               completed: item.completed,
+              completedById: item.completed_by_member_id ?? undefined,
+              completedAt: item.completed_at ?? undefined,
             })),
           attachmentIds: (taskAttachmentsResult.data ?? [])
             .filter((row) => row.task_id === task.id)
             .map((row) => row.attachment_id),
           sourceMessageId: task.source_message_id ?? undefined,
+          acceptedAt: task.accepted_at ?? undefined,
+          declinedAt: task.declined_at ?? undefined,
+          blockedAt: task.blocked_at ?? undefined,
+          completedAt: task.completed_at ?? undefined,
+          canceledAt: task.canceled_at ?? undefined,
+          statusReason: task.status_reason ?? undefined,
+          statusChangedAt: task.status_changed_at,
+          templateId: task.template_id ?? undefined,
+          scheduleId: task.schedule_id ?? undefined,
+          occurrenceDueAt: task.occurrence_due_at ?? undefined,
+        })),
+        taskEvents: (taskEventsResult.data ?? []).map((event) => ({
+          id: event.id,
+          taskId: event.task_id,
+          actorId: event.actor_member_id ?? undefined,
+          type: mapTaskEventType(event.event_type),
+          fromStatus: event.from_status ? mapTaskStatus(event.from_status) : undefined,
+          toStatus: mapTaskStatus(event.to_status),
+          reason: event.reason ?? undefined,
+          metadata: normalizeAuditMetadata(event.metadata),
+          createdAt: event.created_at,
+        })),
+        taskTemplates: (templatesResult.data ?? []).map((template) => ({
+          id: template.id,
+          name: template.name,
+          title: template.title,
+          createdById: template.created_by_member_id,
+          visibility: template.visibility,
+          locationId: template.location_id ?? undefined,
+          departmentId: template.department_id ?? undefined,
+          checklist: (templateItemsResult.data ?? [])
+            .filter((item) => item.template_id === template.id)
+            .map((item) => item.label),
+        })),
+        taskSchedules: (schedulesResult.data ?? []).map((schedule) => ({
+          id: schedule.id,
+          templateId: schedule.template_id,
+          createdById: schedule.created_by_member_id,
+          channelId: schedule.channel_id,
+          ownerId: schedule.owner_member_id,
+          frequency: schedule.frequency,
+          weekdays: schedule.weekdays,
+          monthDay: schedule.month_day ?? undefined,
+          dueLocalTime: schedule.due_local_time,
+          timezone: schedule.timezone,
+          createLeadMinutes: schedule.create_lead_minutes,
+          nextDueAt: schedule.next_due_at,
+          active: schedule.active,
         })),
         attachments: attachments.map((attachment) => {
           const taskLink = (taskAttachmentsResult.data ?? []).find(
@@ -640,6 +906,184 @@ export function createSupabaseClinicRepository(
       }
     },
 
+    async listTasks(scope, filters = {}, cursor, limit = 50) {
+      return queryTaskPage(client, scope, filters, cursor, limit)
+    },
+
+    async getTask(scope, taskId) {
+      const [
+        taskResult,
+        collaboratorsResult,
+        checklistResult,
+        attachmentsResult,
+        eventsResult,
+      ] = await Promise.all([
+        client
+          .from('tasks')
+          .select(`
+            id,
+            title,
+            channel_id,
+            owner_member_id,
+            created_by_member_id,
+            due_at,
+            status,
+            status_reason,
+            status_changed_at,
+            source_message_id,
+            accepted_at,
+            declined_at,
+            blocked_at,
+            completed_at,
+            canceled_at,
+            template_id,
+            schedule_id,
+            occurrence_due_at
+          `)
+          .eq('organization_id', scope.organizationId)
+          .eq('id', taskId)
+          .is('archived_at', null)
+          .single(),
+        client
+          .from('task_collaborators')
+          .select('member_id')
+          .eq('organization_id', scope.organizationId)
+          .eq('task_id', taskId),
+        client
+          .from('task_checklist_items')
+          .select('id, label, completed, completed_by_member_id, completed_at, position')
+          .eq('organization_id', scope.organizationId)
+          .eq('task_id', taskId)
+          .order('position'),
+        client
+          .from('task_attachments')
+          .select('attachment_id')
+          .eq('organization_id', scope.organizationId)
+          .eq('task_id', taskId),
+        client
+          .from('task_events')
+          .select('id, actor_member_id, event_type, from_status, to_status, reason, metadata, created_at')
+          .eq('organization_id', scope.organizationId)
+          .eq('task_id', taskId)
+          .order('created_at'),
+      ])
+      const failed = [
+        taskResult,
+        collaboratorsResult,
+        checklistResult,
+        attachmentsResult,
+        eventsResult,
+      ].find((result) => result.error)
+      if (failed?.error) throw new Error(`Could not load the task: ${failed.error.message}`)
+      if (!taskResult.data) throw new Error('The task does not exist or is not accessible.')
+      const task = taskResult.data as TaskRecordRow
+      return {
+        id: task.id,
+        title: task.title,
+        channelId: task.channel_id,
+        ownerId: task.owner_member_id,
+        createdById: task.created_by_member_id,
+        collaboratorIds: (collaboratorsResult.data ?? []).map((row) => row.member_id),
+        dueAt: task.due_at,
+        status: mapTaskStatus(task.status),
+        checklist: (checklistResult.data ?? []).map((item) => ({
+          id: item.id,
+          label: item.label,
+          completed: item.completed,
+          completedById: item.completed_by_member_id ?? undefined,
+          completedAt: item.completed_at ?? undefined,
+        })),
+        attachmentIds: (attachmentsResult.data ?? []).map((row) => row.attachment_id),
+        sourceMessageId: task.source_message_id ?? undefined,
+        acceptedAt: task.accepted_at ?? undefined,
+        declinedAt: task.declined_at ?? undefined,
+        blockedAt: task.blocked_at ?? undefined,
+        completedAt: task.completed_at ?? undefined,
+        canceledAt: task.canceled_at ?? undefined,
+        statusReason: task.status_reason ?? undefined,
+        statusChangedAt: task.status_changed_at,
+        templateId: task.template_id ?? undefined,
+        scheduleId: task.schedule_id ?? undefined,
+        occurrenceDueAt: task.occurrence_due_at ?? undefined,
+        events: (eventsResult.data ?? []).map((event) => ({
+          id: event.id,
+          taskId,
+          actorId: event.actor_member_id ?? undefined,
+          type: mapTaskEventType(event.event_type),
+          fromStatus: event.from_status ? mapTaskStatus(event.from_status) : undefined,
+          toStatus: mapTaskStatus(event.to_status),
+          reason: event.reason ?? undefined,
+          metadata: normalizeAuditMetadata(event.metadata),
+          createdAt: event.created_at,
+        })),
+      }
+    },
+
+    async listWorkAgenda(scope, startsAt, endsAt, cursor, limit = 50) {
+      const taskPage = await queryTaskPage(
+        client,
+        scope,
+        { dueFrom: startsAt, dueTo: endsAt },
+        cursor,
+        limit,
+      )
+      const meetings: WorkAgendaItem[] = []
+      if (!cursor) {
+        const { data, error } = await client
+          .from('meetings')
+          .select(`
+            id,
+            channel_id,
+            message_id,
+            organizer_member_id,
+            title,
+            provider,
+            join_url,
+            starts_at,
+            ends_at,
+            timezone,
+            created_at,
+            meeting_attendees(member_id)
+          `)
+          .eq('organization_id', scope.organizationId)
+          .is('archived_at', null)
+          .gte('starts_at', startsAt)
+          .lt('starts_at', endsAt)
+          .order('starts_at')
+          .limit(50)
+        if (error) throw new Error(`Could not load the work agenda: ${error.message}`)
+        meetings.push(...(data ?? []).map((meeting) => ({
+          kind: 'meeting' as const,
+          startsAt: meeting.starts_at,
+          meeting: {
+            id: meeting.id,
+            channelId: meeting.channel_id,
+            messageId: meeting.message_id ?? '',
+            organizerId: meeting.organizer_member_id,
+            title: meeting.title,
+            provider: meeting.provider,
+            joinUrl: meeting.join_url,
+            startsAt: meeting.starts_at,
+            endsAt: meeting.ends_at,
+            timezone: meeting.timezone,
+            attendeeIds: (meeting.meeting_attendees ?? []).map((row) => row.member_id),
+            createdAt: meeting.created_at,
+          },
+        })))
+      }
+      return {
+        items: [
+          ...taskPage.items.map((task) => ({
+            kind: 'task' as const,
+            startsAt: task.dueAt,
+            task,
+          })),
+          ...meetings,
+        ].sort((left, right) => Date.parse(left.startsAt) - Date.parse(right.startsAt)),
+        nextCursor: taskPage.nextCursor,
+      }
+    },
+
     async createChannel(scope, input) {
       const archiveAt = input.archivePolicy === 'indefinite'
         ? null
@@ -682,7 +1126,37 @@ export function createSupabaseClinicRepository(
         })
         .single()
       if (error) throw new Error(`Could not create the task: ${error.message}`)
-      return (data as { id: string }).id
+      const taskId = (data as { id: string }).id
+      if (input.recurrence) {
+        const { data: template, error: templateError } = await client
+          .rpc('save_task_template', {
+            target_organization_id: scope.organizationId,
+            target_name: input.title,
+            target_title: input.title,
+            target_visibility: 'private',
+            target_location_id: null,
+            target_department_id: null,
+            target_checklist_labels: input.checklist,
+          })
+          .single()
+        if (templateError) throw new Error(`The task was created, but its repeat schedule was not saved: ${templateError.message}`)
+        const recurrence = input.recurrence
+        const { error: scheduleError } = await client.rpc('create_task_schedule', {
+          target_organization_id: scope.organizationId,
+          target_template_id: (template as { id: string }).id,
+          target_channel_id: input.channelId,
+          target_owner_member_id: input.ownerId,
+          target_frequency: recurrence.frequency,
+          target_weekdays: recurrence.weekdays,
+          target_month_day: recurrence.monthDay ?? null,
+          target_due_local_time: localTimeForZone(input.dueAt, recurrence.timezone),
+          target_timezone: recurrence.timezone,
+          target_create_lead_minutes: recurrence.createLeadMinutes,
+          target_last_due_at: input.dueAt,
+        })
+        if (scheduleError) throw new Error(`The task was created, but its repeat schedule was not saved: ${scheduleError.message}`)
+      }
+      return taskId
     },
 
     async setTaskChecklistItem(scope, taskId, itemId, completed) {
@@ -693,6 +1167,46 @@ export function createSupabaseClinicRepository(
         target_completed: completed,
       })
       if (error) throw new Error(`Could not update the task: ${error.message}`)
+    },
+
+    async respondToTask(scope, taskId, response, reason) {
+      const { error } = await client.rpc('respond_to_task_assignment', {
+        target_organization_id: scope.organizationId,
+        target_task_id: taskId,
+        target_response: response,
+        target_reason: reason ?? null,
+      })
+      if (error) throw new Error(`Could not respond to the task: ${error.message}`)
+    },
+
+    async transitionTask(scope, taskId, action, reason, reopenItemId) {
+      const { error } = await client.rpc('transition_task', {
+        target_organization_id: scope.organizationId,
+        target_task_id: taskId,
+        target_action: action,
+        target_reason: reason ?? null,
+        target_reopen_item_id: reopenItemId ?? null,
+      })
+      if (error) throw new Error(`Could not change the task: ${error.message}`)
+    },
+
+    async reassignTask(scope, taskId, ownerId, reason) {
+      const { error } = await client.rpc('reassign_task', {
+        target_organization_id: scope.organizationId,
+        target_task_id: taskId,
+        target_owner_member_id: ownerId,
+        target_reason: reason,
+      })
+      if (error) throw new Error(`Could not reassign the task: ${error.message}`)
+    },
+
+    async setTaskScheduleActive(scope, scheduleId, active) {
+      const { error } = await client.rpc('set_task_schedule_active', {
+        target_organization_id: scope.organizationId,
+        target_schedule_id: scheduleId,
+        target_active: active,
+      })
+      if (error) throw new Error(`Could not update the task schedule: ${error.message}`)
     },
 
     async createMeeting(scope, input) {
@@ -847,9 +1361,44 @@ function mapRoleToDatabase(value: RoleBinding['role']) {
 }
 
 function mapTaskStatus(value: string): Task['status'] {
+  if (value === 'pending_acceptance') return 'pendingAcceptance'
+  if (value === 'accepted') return 'accepted'
   if (value === 'in_progress') return 'inProgress'
+  if (value === 'blocked') return 'blocked'
   if (value === 'done') return 'done'
-  return 'open'
+  if (value === 'declined') return 'declined'
+  if (value === 'canceled') return 'canceled'
+  return 'accepted'
+}
+
+function mapTaskStatusToDatabase(value: TaskStatus) {
+  const statuses: Record<TaskStatus, string> = {
+    pendingAcceptance: 'pending_acceptance',
+    accepted: 'accepted',
+    inProgress: 'in_progress',
+    blocked: 'blocked',
+    done: 'done',
+    declined: 'declined',
+    canceled: 'canceled',
+  }
+  return statuses[value]
+}
+
+function mapTaskEventType(value: string): TaskEvent['type'] {
+  if (value === 'self_created') return 'selfCreated'
+  return value as TaskEvent['type']
+}
+
+function localTimeForZone(value: string, timezone: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+    timeZone: timezone,
+  }).formatToParts(new Date(value))
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '00'
+  return `${part('hour')}:${part('minute')}:${part('second')}`
 }
 
 function mapMembershipSource(

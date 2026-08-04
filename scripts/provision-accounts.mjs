@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
@@ -18,10 +18,6 @@ export async function provisionAccounts(manifest, options = {}) {
   const serviceRoleKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY
     ?? process.env.SERVICE_ROLE_KEY
-  const publishableKey =
-    process.env.SUPABASE_PUBLISHABLE_KEY
-    ?? process.env.ANON_KEY
-
   if (!url || !serviceRoleKey) {
     throw new Error(
       'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before provisioning.',
@@ -102,9 +98,7 @@ export async function provisionAccounts(manifest, options = {}) {
     credentials.accounts[account.key] = {
       email: account.email,
       password,
-      aal: account.aal ?? 'aal2',
       role: account.role ?? null,
-      totpSecret: saved?.totpSecret ?? null,
     }
 
     if (account.outsider) continue
@@ -157,36 +151,6 @@ export async function provisionAccounts(manifest, options = {}) {
     channels,
     members,
   )
-
-  for (const account of manifest.accounts) {
-    const credential = credentials.accounts[account.key]
-    const user = users.find(
-      (candidate) => candidate.email?.toLowerCase() === account.email.toLowerCase(),
-    )
-    if (!user) continue
-
-    if (account.aal === 'bypass') {
-      const expiresAt = new Date(Date.now() + 6 * 86_400_000).toISOString()
-      const result = await admin.rpc('configure_development_mfa_bypass', {
-        target_user_id: user.id,
-        target_reason: 'Automated development test account',
-        target_expires_at: expiresAt,
-      })
-      assertNoError(result.error, `configure MFA bypass for ${account.email}`)
-      credential.bypassExpiresAt = expiresAt
-    } else if (
-      account.aal !== 'aal1'
-      && publishableKey
-    ) {
-      credential.totpSecret = await ensureTotp(
-        url,
-        publishableKey,
-        account.email,
-        credential.password,
-        credential.totpSecret,
-      )
-    }
-  }
 
   await writeFile(outputPath, `${JSON.stringify(credentials, null, 2)}\n`, {
     encoding: 'utf8',
@@ -570,52 +534,6 @@ async function replaceChannelMemberships(
   }
 }
 
-async function ensureTotp(
-  url,
-  publishableKey,
-  email,
-  password,
-  existingSecret,
-) {
-  const client = createClient(url, publishableKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-  const signIn = await client.auth.signInWithPassword({ email, password })
-  assertNoError(signIn.error, `sign in ${email} for TOTP enrollment`)
-  const factors = await client.auth.mfa.listFactors()
-  assertNoError(factors.error, `list TOTP factors for ${email}`)
-  const verifiedFactor = factors.data.totp.find(
-    (factor) => factor.status === 'verified',
-  )
-  if (verifiedFactor) {
-    await client.auth.signOut()
-    if (!existingSecret) {
-      throw new Error(
-        `The TOTP secret for ${email} is not in the local credentials file.`,
-      )
-    }
-    return existingSecret
-  }
-  const enrolled = await client.auth.mfa.enroll({
-    factorType: 'totp',
-    friendlyName: 'Development test authenticator',
-  })
-  assertNoError(enrolled.error, `enroll TOTP for ${email}`)
-  const secret = enrolled.data.totp.secret
-  const challenged = await client.auth.mfa.challenge({
-    factorId: enrolled.data.id,
-  })
-  assertNoError(challenged.error, `challenge TOTP for ${email}`)
-  const verified = await client.auth.mfa.verify({
-    factorId: enrolled.data.id,
-    challengeId: challenged.data.id,
-    code: totp(secret),
-  })
-  assertNoError(verified.error, `verify TOTP for ${email}`)
-  await client.auth.signOut()
-  return secret
-}
-
 async function listAllUsers(admin) {
   const users = []
   for (let page = 1; ; page += 1) {
@@ -653,37 +571,6 @@ function assertNoError(error, action) {
 
 function generatePassword() {
   return `Yk!${randomBytes(18).toString('base64url')}9a`
-}
-
-function totp(secret) {
-  const key = decodeBase32(secret)
-  const counter = Math.floor(Date.now() / 30_000)
-  const message = Buffer.alloc(8)
-  message.writeBigUInt64BE(BigInt(counter))
-  const digest = createHmac('sha1', key).update(message).digest()
-  const offset = digest[digest.length - 1] & 0x0f
-  const value = (
-    ((digest[offset] & 0x7f) << 24)
-    | ((digest[offset + 1] & 0xff) << 16)
-    | ((digest[offset + 2] & 0xff) << 8)
-    | (digest[offset + 3] & 0xff)
-  ) % 1_000_000
-  return value.toString().padStart(6, '0')
-}
-
-function decodeBase32(value) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-  let bits = ''
-  for (const character of value.replace(/=+$/u, '').toUpperCase()) {
-    const index = alphabet.indexOf(character)
-    if (index < 0) continue
-    bits += index.toString(2).padStart(5, '0')
-  }
-  const bytes = []
-  for (let index = 0; index + 8 <= bits.length; index += 8) {
-    bytes.push(Number.parseInt(bits.slice(index, index + 8), 2))
-  }
-  return Buffer.from(bytes)
 }
 
 async function readJsonIfPresent(path) {

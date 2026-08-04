@@ -30,7 +30,6 @@
       "email": "employee@example.com",
       "fullName": "Employee Name",
       "role": "staff",
-      "aal": "aal2",
       "locale": "vi-VN",
       "defaultLocation": "main-clinic",
       "notificationsEnabled": true,

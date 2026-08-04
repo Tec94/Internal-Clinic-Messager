@@ -70,7 +70,9 @@ export const AppSelect = forwardRef<HTMLButtonElement, AppSelectProps>(
     return (
       <>
         <Select.Root
-          value={selectedValue === undefined ? undefined : encodeValue(selectedValue)}
+          value={selectedValue === undefined || (selectedValue === '' && placeholder !== undefined)
+            ? undefined
+            : encodeValue(selectedValue)}
           onValueChange={(nextValue) => {
             const decodedValue = decodeValue(nextValue)
             if (value === undefined) setUncontrolledValue(decodedValue)

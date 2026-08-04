@@ -4,7 +4,6 @@ import {
   CalendarDays,
   CircleHelp,
   FileText,
-  FlaskConical,
   LayoutDashboard,
   Menu,
   MessageSquareText,
@@ -29,27 +28,12 @@ import { IconButton } from './ui'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 import { ZaloPersonalLauncher } from './ZaloPersonalLauncher'
 
-const mfaExpiryFormatters = {
-  'en-US': new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }),
-  'vi-VN': new Intl.DateTimeFormat('vi-VN', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }),
-}
-
 export function AppShell({
   authEnabled = false,
-  mfaBypassed = false,
-  mfaBypassExpiresAt = null,
 }: {
   authEnabled?: boolean
-  mfaBypassed?: boolean
-  mfaBypassExpiresAt?: string | null
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { isNative } = useNativePlatform()
   const { hasPermission } = useClinic()
   const {
@@ -92,8 +76,8 @@ export function AppShell({
     { to: '/inbox', label: t('nav.inbox'), icon: LayoutDashboard, active: location.pathname === '/inbox' },
     { to: '/channels', label: t('nav.chats'), icon: MessageSquareText, active: location.pathname.startsWith('/channels') },
     { to: '/tasks', label: t('nav.tasks'), icon: ShieldCheck, active: location.pathname.startsWith('/tasks') },
-    { to: '/documents', label: t('nav.documents'), icon: FileText, active: location.pathname.startsWith('/documents') },
     { to: '/meetings', label: t('nav.meetings'), icon: CalendarDays, active: location.pathname.startsWith('/meetings') },
+    { to: '/documents', label: t('nav.documents'), icon: FileText, active: location.pathname.startsWith('/documents') },
     { to: '/people', label: t('nav.people'), icon: Users, active: location.pathname.startsWith('/people') },
   ]
 
@@ -114,18 +98,6 @@ export function AppShell({
             }}
           >
             <a className="skip-link" href="#main-content">{t('common.skipToMain')}</a>
-            {mfaBypassed && mfaBypassExpiresAt ? (
-              <div className="development-mfa-banner" role="status">
-                <FlaskConical size={15} aria-hidden="true" />
-                <span>
-                  {t('auth.mfaBypassActive', {
-                    expires: mfaExpiryFormatters[
-                      i18n.language === 'vi-VN' ? 'vi-VN' : 'en-US'
-                    ].format(new Date(mfaBypassExpiresAt)),
-                  })}
-                </span>
-              </div>
-            ) : null}
             <nav className="icon-rail" aria-label={t('nav.primary')}>
               <div className="rail-main">
                 {navItems.map(({ to, label, icon: Icon, active }) => (

@@ -25,25 +25,27 @@ server function or API.
 
 ## Current implementation status
 
-As of July 29, 2026, the durable application foundation is implemented on the
-`develop` branch. The hosted development backend has all thirteen tracked
-migrations and three JWT-protected Edge Functions. Authenticated Chat, Inbox,
-directory, Tasks, Meetings, announcements, account settings, and supported
-administration paths use Supabase. Synthetic data and the floating role panel
-remain available only when `VITE_REQUIRE_AUTH=false`.
+As of August 2, 2026, the durable application foundation is implemented on the
+`develop` branch. The repository has fourteen tracked migrations; the hosted
+development backend has the first thirteen and three JWT-protected Edge
+Functions. Apply the MFA phase-out migration before deploying the matching
+frontend. Authenticated Chat, Inbox, directory, Tasks, Meetings,
+announcements, account settings, and supported administration paths use
+Supabase. Synthetic data and the floating role panel remain available only
+when `VITE_REQUIRE_AUTH=false`.
 
 The completed repository and development-backend slice includes:
 
-- Thirteen tracked imperative migrations for identity, assignments, scoped roles,
-  onboarding, channels, messages, attachment metadata and linkage, audit
-  events, Realtime publication, composite foreign-key indexes, and an
-  expiring development MFA test exception.
+- Fourteen tracked imperative migrations for identity, assignments, scoped
+  roles, onboarding, channels, messages, attachment metadata and linkage,
+  audit events, Realtime publication, composite foreign-key indexes, and the
+  current MFA phase-out.
 - Tenant-consistent composite foreign keys, server-controlled update
-  timestamps, explicit Data API grants, AAL2 restrictions, and RLS for active,
-  suspended, expired, scoped-manager, channel-member, view-only, outsider, and
-  audit-reader cases.
-- Protected routes for signed-out, MFA, onboarding, active, suspended, expired,
-  and authorization-error states. Production mode removes the persona selector.
+  timestamps, explicit Data API grants, authenticated-session restrictions,
+  and RLS for active, suspended, expired, scoped-manager, channel-member,
+  view-only, outsider, and audit-reader cases.
+- Protected routes for signed-out, onboarding, active, suspended, expired, and
+  authorization-error states. Production mode removes the persona selector.
 - A transactional onboarding function that updates the signed-in member's
   profile and preferences, stamps policy acceptance in the database, and
   appends metadata-only audit evidence.
@@ -74,11 +76,11 @@ The completed repository and development-backend slice includes:
 - Durable Tasks, Meetings, directory, announcements, access requests, policy
   warnings, organization settings, locations, and scoped member assignments.
 - An idempotent manual employee provisioner and a 14-account development test
-  matrix covering AAL2, AAL1 denial, scoped roles, view-only access,
-  suspension, expiry, and outsider denial.
-- Fourteen confirmed hosted Auth identities. Twelve have verified TOTP
-  factors, one remains AAL1 for denial testing, and one uses the expiring
-  development-only MFA bypass.
+  matrix covering scoped roles, view-only access, suspension, expiry, and
+  outsider denial without enrolling TOTP factors.
+- Fourteen confirmed hosted Auth identities. Existing TOTP factors remain
+  attached to historical test users, but the current client and database path
+  no longer challenges or requires them.
 - A versioned service worker, real PNG and maskable icons, install and update
   UX, offline status, safe shell precaching, self-hosted fonts, and per-device
   Web Push subscription storage. Supabase and attachment traffic is
@@ -90,24 +92,22 @@ The completed repository and development-backend slice includes:
   Zalo Web Chat in a separate Zalo-controlled window when
   `VITE_ENABLE_ZALO_LAUNCHER=true`. It does not import chats or store Zalo
   credentials.
-- Fifty-nine Vitest tests, 128 pgTAP assertions, database lint, local
-  security and performance advisors, and repeatable Realtime and attachment
-  integration tests. The attachment test uploads seven MiB, promotes it,
-  links it atomically, downloads it through a signed URL, and removes all test
-  data.
+- Fifty-seven Vitest tests and 107 pgTAP assertions pass after the phase-out.
+  Database lint and local security and performance advisors report no issues.
+  The updated integrations restore a password session, prove Realtime, upload
+  seven MiB, promote it, link it atomically, download it through a signed URL,
+  and remove all test data.
 - A hosted development deployment with 36 public tables, RLS on all 36,
-  85 public-schema policies, 36 AAL2 policy checks, no anonymous
-  attachment grants, and the `messages` table in the Realtime publication.
+  85 public-schema policies, no anonymous attachment grants, and the
+  `messages` table in the Realtime publication. The phase-out migration still
+  needs hosted verification.
 - Three active hosted Edge Functions with JWT verification enabled. Attachment
   promotion and Web Push remain fail-closed until their server secrets are
   configured.
-- Two expiring, per-user hosted MFA bypass entries for development testing.
-  The synthetic bypass expires on August 3, 2026 at 16:13 UTC, logs first use
-  per Auth session, and leaves every non-allowlisted AAL1 identity denied.
-- Real hosted password and TOTP sessions for every test identity. They prove
-  active role access, location and department scope boundaries, view-only
-  behavior, AAL1 denial, development bypass, suspension, expiry, outsider
-  isolation, and stored locale and time-zone preferences.
+- Real hosted sessions previously proved active role access, location and
+  department scope boundaries, view-only behavior, suspension, expiry,
+  outsider isolation, and stored locale and time-zone preferences. Repeat this
+  matrix with email-and-password sessions after deploying the phase-out.
 - Hosted performance advisors with no missing foreign-key indexes. The
   remaining unused-index notices are expected with the small synthetic
   development dataset.
@@ -158,8 +158,9 @@ Use these repository artifacts to review the claims in the status section:
 - [Function privilege hardening migration](../supabase/migrations/20260728130000_harden_function_privileges.sql)
 - [Notification authorization migration](../supabase/migrations/20260728140000_add_notification_authorization.sql)
 - [Notification authorization repair](../supabase/migrations/20260728150000_fix_notification_authorization.sql)
+- [MFA phase-out migration](../supabase/migrations/20260802144218_phase_out_mfa.sql)
 - [Database policy tests](../supabase/tests/database)
-- [AAL2 and Realtime integration test](../supabase/tests/integration/realtime.mjs)
+- [Password session and Realtime integration test](../supabase/tests/integration/realtime.mjs)
 - [Private attachment integration test](../supabase/tests/integration/attachments.mjs)
 - [Authentication state machine](../src/state/AuthContext.tsx)
 - [Supabase messaging repository](../src/services/supabaseMessagingRepository.ts)
@@ -182,8 +183,8 @@ until the accountable clinic stakeholders resolve them.
 1. Confirm that production remains operational-only and define the escalation
    process when patient information is posted accidentally.
 2. Select the primary identity provider: Microsoft Entra ID or Google Workspace
-   SSO is preferred; invitation-only email magic links plus mandatory MFA are a
-   workable initial fallback.
+   SSO is preferred. The current release uses administrator-created
+   email-and-password accounts, and the clinic must decide when to restore MFA.
 3. Select the hosting region and approve the vendor DPA, retention schedule,
    backup/PITR tier, recovery objectives, log retention, and support-access
    process.
@@ -241,7 +242,7 @@ React permission helpers, are the source of enforcement.
 React state. Replace it incrementally, rather than rewriting screens. The
 boundary work now has the following status:
 
-1. **Completed:** Use `AuthProvider` for loading, signed-out, MFA, onboarding,
+1. **Completed:** Use `AuthProvider` for loading, signed-out, onboarding,
    active, suspended, expired, and authorization-error states. Production mode
    hides the preview persona selector.
 2. **Completed for core messaging:** Use repository interfaces plus TanStack
@@ -273,29 +274,30 @@ database, run policy tests, then build the web and Capacitor artifacts.
 
 Public self-signup is disabled in the local configuration and the configured
 hosted project. The current UI supports administrator-created email/password
-accounts, TOTP MFA, session restoration, and onboarding. Invitation acceptance,
-SSO or Auth0 token bridging, organization setup, and automated offboarding are
-not implemented.
+accounts, session restoration, and onboarding without a second-factor
+challenge. Invitation acceptance, SSO or Auth0 token bridging, organization
+setup, and automated offboarding are not implemented.
 
-### Development-only MFA bypass
+### MFA phase-out
 
-The connected development project has a temporary test exception. It doesn't
-modify or forge the Supabase `aal` JWT claim. Instead, the shared database MFA
-gate accepts an AAL1 session only when the signed-in user has an unexpired row
-in `private.development_mfa_bypasses`.
+The current release accepts Supabase AAL1 password sessions. The phase-out
+removes the MFA route, enrollment and verification calls, client bypass flag,
+and automatic TOTP enrollment from account provisioning.
 
-The exception is fail-closed:
+The authorization boundary remains fail-closed:
 
-- The migration creates no allowlist entries.
-- Each entry is user-specific and limited to seven days.
-- Authenticated clients can't read or write the allowlist or event ledger.
-- The frontend requires `VITE_ENABLE_MFA_BYPASS=true` before requesting the
-  bypass and displays its expiry while active.
-- Tenant, membership, channel, sender, suspension, and expiry rules still
+- The database requires `auth.uid()` before the existing tenant and role checks
+  run.
+- Tenant, membership, channel, sender, suspension, and expiry rules continue to
   apply.
+- Historical bypass tables remain private and inactive so the phase-out does
+  not destroy prior development records.
+- Existing TOTP factors remain attached to users, but the application does not
+  challenge them.
 
-Remove the allowlist row and keep the client flag false before any staging or
-production deployment.
+Apply the phase-out migration before deploying the frontend. Disable TOTP
+enrollment and verification in the target Auth configuration for consistent
+behavior across environments.
 
 The target flow starts when an administrator or approved directory sync creates
 an invitation with organization, role, location, department, employment type,
@@ -305,15 +307,13 @@ The staff flow is:
 
 1. Open invitation and authenticate with SSO, or verify an invitation-only
    magic link.
-2. Enroll and verify MFA if the identity provider does not already enforce an
-   approved second factor.
-3. Confirm name and work contact details; identity and assignment fields owned
+2. Confirm name and work contact details; identity and assignment fields owned
    by HR/IT stay read-only.
-4. Accept acceptable-use, privacy, notification, and “no patient details”
+3. Accept acceptable-use, privacy, notification, and “no patient details”
    guidance with policy-version timestamps.
-5. Choose language, primary location when more than one assignment exists,
+4. Choose language, primary location when more than one assignment exists,
    quiet hours, and notification preferences.
-6. Create policy-derived memberships transactionally, show the user's initial
+5. Create policy-derived memberships transactionally, show the user's initial
    channels, and offer PWA installation. Ask for notification permission only
    after an explicit user action.
 
@@ -375,27 +375,25 @@ not production approval or hosted deployment status.
 This phase establishes the approval boundary and proves the backend assumptions.
 
 - [ ] Resolve the five governance decisions above.
-- [x] Create the local backend configuration and thirteen tracked migrations.
+- [x] Create the local backend configuration and fourteen tracked migrations.
 - [x] Connect the Supabase MCP and compare hosted tables, migration history,
   logs, and advisors without changing the project.
-- [x] Classify the configured hosted project as development, deploy all
-  repository migrations, and preserve the local migration timestamps.
+- [ ] Apply the MFA phase-out migration to the configured hosted development
+  project and repeat the authorization matrix.
 - [x] Verify hosted RLS, grants, Realtime publication, foreign-key indexes, and
   transactional sender, view-only, outsider, and AAL1 cases.
-- [x] Prove active-member, scoped-manager, denied-outsider, suspended, expired,
-  AAL2, view-only, and audit-reader RLS cases locally.
-- [x] Prove AAL2 session restoration, RLS insertion, and Realtime delivery in a
-  local integration test.
+- [x] Re-run active-member, scoped-manager, denied-outsider, suspended, expired,
+  AAL1, view-only, and audit-reader RLS cases locally.
+- [x] Prove password session restoration, RLS insertion, and Realtime delivery
+  in the updated local integration test.
 
 ### Phase 1 — auth and organization setup
 
 This phase establishes trusted staff identity and organization lifecycle flows.
 
 - [x] Add protected routes and the auth state machine.
-- [x] Add TOTP MFA enrollment and verification, session restoration, and
-  transactional staff onboarding.
-- [x] Add an expiring, per-user MFA bypass for development testing with a
-  visible warning and private session-use ledger.
+- [x] Phase out TOTP enrollment, verification, and routing while retaining
+  session restoration and transactional staff onboarding.
 - [x] Add manual, idempotent employee provisioning for the onboarding-deferred
   release.
 - [x] Add persistent account settings and signed-in password change.
@@ -455,8 +453,9 @@ The remaining milestone is deployment evidence, not another application data
 model:
 
 1. Deploy the scanner container and configure the finalizer secrets.
-2. Deploy the Vercel client with production flags and complete the hosted
-   AAL2, upload, download, persistence, install, and update smoke tests.
+2. Apply the MFA phase-out migration, deploy the Vercel client with production
+   flags, and complete hosted password, upload, download, persistence, install,
+   and update smoke tests.
 3. Configure the generic Web Push worker's VAPID secrets and prove delivery.
 4. Complete clinic approval, backup restoration, device review, signing, and
    store records. These external gates cannot be completed from source code.

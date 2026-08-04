@@ -420,8 +420,8 @@ select set_config(
 );
 select is(
   (select count(*) from public.channels),
-  0::bigint,
-  'AAL1 sessions cannot read channel data'
+  2::bigint,
+  'an active AAL1 member can read joined channels'
 );
 reset role;
 

@@ -7,12 +7,10 @@ import {
   AccessStatusPage,
   AuthCallbackPage,
   LoginPage,
-  MfaPage,
   OnboardingPage,
 } from './pages/AuthPages'
 import { DirectoryPage } from './pages/DirectoryPage'
 import { InboxPage } from './pages/InboxPage'
-import { TodosPage } from './pages/TodosPage'
 import { useAuth } from './state/AuthContext'
 import { useMessaging } from './state/MessagingContext'
 
@@ -46,10 +44,6 @@ export function App({ requireAuth = false }: { requireAuth?: boolean }) {
         <Route
           path="/login"
           element={requireAuth ? <LoginPage /> : <Navigate to="/inbox" replace />}
-        />
-        <Route
-          path="/mfa"
-          element={requireAuth ? <MfaPage /> : <Navigate to="/inbox" replace />}
         />
         <Route
           path="/auth/callback"
@@ -88,7 +82,7 @@ export function App({ requireAuth = false }: { requireAuth?: boolean }) {
           <Route path="/documents/:documentId?" element={<DocumentsPage />} />
           <Route path="/meetings/:meetingId?" element={<MeetingsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/todos" element={<TodosPage />} />
+          <Route path="/todos" element={<Navigate to="/tasks" replace />} />
           <Route path="/channels" element={<ChannelLanding />} />
           <Route path="/channels/:channelId" element={<ChannelPage />} />
           <Route
@@ -135,15 +129,12 @@ export function App({ requireAuth = false }: { requireAuth?: boolean }) {
 }
 
 function AuthenticatedWorkspace() {
-  const { status, mfaBypassed, mfaBypassExpiresAt } = useAuth()
+  const { status } = useAuth()
   const location = useLocation()
 
   if (status === 'loading') return <RouteLoading />
   if (status === 'signedOut') {
     return <Navigate to="/login" replace state={{ from: location }} />
-  }
-  if (status === 'mfa') {
-    return <Navigate to="/mfa" replace state={{ from: location }} />
   }
   if (status === 'onboarding') {
     return <Navigate to="/onboarding" replace state={{ from: location }} />
@@ -157,13 +148,7 @@ function AuthenticatedWorkspace() {
   if (status === 'error') {
     return <Navigate to="/auth/error" replace state={{ from: location }} />
   }
-  return (
-    <AppShell
-      authEnabled
-      mfaBypassed={mfaBypassed}
-      mfaBypassExpiresAt={mfaBypassExpiresAt}
-    />
-  )
+  return <AppShell authEnabled />
 }
 
 function ChannelLanding() {
