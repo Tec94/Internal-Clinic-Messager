@@ -2,6 +2,7 @@ import {
   createContext,
   type PropsWithChildren,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -46,11 +47,16 @@ import type {
   SaveOrganizationSettingsInput,
   SendMessageInput,
   Task,
+  TaskEvent,
+  TaskSchedule,
+  TaskTemplate,
+  TaskTransitionAction,
   Attachment,
   UpdateTaskInput,
   UploadTarget,
   AuditEvent,
 } from '../types/domain'
+import { supabase } from '../utils/supabase'
 import { useOptionalAuth } from './AuthContext'
 
 const clinicQueryClient = new QueryClient({
@@ -68,6 +74,9 @@ export interface ClinicContextValue {
   memberships: ChannelMembership[]
   messages: Message[]
   tasks: Task[]
+  taskEvents: TaskEvent[]
+  taskTemplates: TaskTemplate[]
+  taskSchedules: TaskSchedule[]
   attachments: Attachment[]
   meetings: Meeting[]
   meetingResponses: MeetingResponse[]
@@ -88,6 +97,26 @@ export interface ClinicContextValue {
   updateTask: (
     taskId: string,
     patch: UpdateTaskInput,
+  ) => void | Promise<void>
+  respondToTask: (
+    taskId: string,
+    response: 'accept' | 'decline',
+    reason?: string,
+  ) => void | Promise<void>
+  transitionTask: (
+    taskId: string,
+    action: TaskTransitionAction,
+    reason?: string,
+    reopenItemId?: string,
+  ) => void | Promise<void>
+  reassignTask: (
+    taskId: string,
+    ownerId: string,
+    reason: string,
+  ) => void | Promise<void>
+  setTaskScheduleActive: (
+    scheduleId: string,
+    active: boolean,
   ) => void | Promise<void>
   uploadAttachments: (files: File[], target: UploadTarget) => Promise<Attachment[]>
   createMeeting: (input: CreateMeetingInput) => Meeting | Promise<Meeting>
@@ -150,17 +179,35 @@ export function ClinicProvider({
   const [memberships, setMemberships] = useState(seedMemberships)
   const [messages, setMessages] = useState(seedMessages)
   const [tasks, setTasks] = useState(seedTasks)
+  const [taskEvents, setTaskEvents] = useState<TaskEvent[]>([])
+  const [taskTemplates] = useState<TaskTemplate[]>([])
+  const [taskSchedules, setTaskSchedules] = useState<TaskSchedule[]>([])
   const [attachments, setAttachments] = useState(seedAttachments)
   const [meetings, setMeetings] = useState(seedMeetings)
   const [meetingResponses, setMeetingResponses] = useState(seedMeetingResponses)
   const [announcements, setAnnouncements] = useState(seedAnnouncements)
   const [accessRequests, setAccessRequests] = useState(seedAccessRequests)
+  const refetchSnapshot = snapshotQuery.refetch
+  const realtimeOrganizationId = auth?.membership?.organizationId
 
   const currentUser = users.find((user) => user.id === currentUserId) ?? users[3]
   const currentBinding =
     roleBindings.find((binding) =>
       currentUser.roleBindingIds.includes(binding.id),
     ) ?? roleBindings[3]
+
+  useEffect(() => {
+    if (!productionEnabled || !realtimeOrganizationId) return
+    const organizationId = realtimeOrganizationId
+    const refresh = () => { void refetchSnapshot() }
+    const channel = supabase
+      .channel(`task-work-agenda:${organizationId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `organization_id=eq.${organizationId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_checklist_items', filter: `organization_id=eq.${organizationId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_events', filter: `organization_id=eq.${organizationId}` }, refresh)
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [productionEnabled, realtimeOrganizationId, refetchSnapshot])
 
   const setCurrentUserId = (userId: string) => {
     const nextUser = users.find((user) => user.id === userId)
@@ -310,9 +357,12 @@ export function ClinicProvider({
       title: input.title,
       channelId: input.channelId,
       ownerId: input.ownerId,
+      createdById: currentUser.id,
       collaboratorIds: input.collaboratorIds,
       dueAt: input.dueAt,
-      status: 'open',
+      status: input.ownerId === currentUser.id ? 'accepted' : 'pendingAcceptance',
+      acceptedAt: input.ownerId === currentUser.id ? createdAt : undefined,
+      statusChangedAt: createdAt,
       checklist: input.checklist.map((label, index) => ({
         id: `${taskId}-check-${index}`,
         label,
@@ -349,6 +399,103 @@ export function ClinicProvider({
     setTasks((items) =>
       items.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
     )
+  }
+
+  const appendTaskEvent = (
+    task: Task,
+    type: TaskEvent['type'],
+    fromStatus: Task['status'],
+    toStatus: Task['status'],
+    reason?: string,
+  ) => {
+    const createdAt = new Date().toISOString()
+    setTaskEvents((items) => [...items, {
+      id: `task-event-${Date.now()}-${type}`,
+      taskId: task.id,
+      actorId: currentUser.id,
+      type,
+      fromStatus,
+      toStatus,
+      reason,
+      metadata: {},
+      createdAt,
+    }])
+    if (!['started'].includes(type)) {
+      setMessages((items) => [...items, {
+        id: `message-${Date.now()}-${type}`,
+        channelId: task.channelId,
+        authorId: currentUser.id,
+        body: `${type === 'completed' ? 'Task completed' : `Task ${type}`}: ${task.title}${reason ? ` — ${reason}` : ''}`,
+        createdAt,
+        isUrgent: false,
+        attachmentIds: [],
+        taskId: task.id,
+      }])
+    }
+  }
+
+  const respondToTask = (taskId: string, response: 'accept' | 'decline', reason?: string) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task || task.ownerId !== currentUser.id || task.status !== 'pendingAcceptance') return
+    const nextStatus = response === 'accept' ? 'accepted' : 'declined'
+    const changedAt = new Date().toISOString()
+    setTasks((items) => items.map((item) => item.id === taskId ? {
+      ...item,
+      status: nextStatus,
+      acceptedAt: response === 'accept' ? changedAt : undefined,
+      declinedAt: response === 'decline' ? changedAt : undefined,
+      statusReason: response === 'decline' ? reason : undefined,
+      statusChangedAt: changedAt,
+    } : item))
+    appendTaskEvent(task, response === 'accept' ? 'accepted' : 'declined', task.status, nextStatus, reason)
+  }
+
+  const transitionTask = (taskId: string, action: TaskTransitionAction, reason?: string, reopenItemId?: string) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task) return
+    const completedCount = task.checklist.filter((item) => item.completed).length
+    const nextStatus: Task['status'] = action === 'block'
+      ? 'blocked'
+      : action === 'unblock'
+        ? completedCount > 0 ? 'inProgress' : 'accepted'
+        : action === 'complete'
+          ? 'done'
+          : action === 'cancel'
+            ? 'canceled'
+            : task.checklist.length > 0 ? 'inProgress' : 'accepted'
+    const changedAt = new Date().toISOString()
+    setTasks((items) => items.map((item) => item.id === taskId ? {
+      ...item,
+      status: nextStatus,
+      checklist: action === 'reopen' && reopenItemId
+        ? item.checklist.map((check) => check.id === reopenItemId ? { ...check, completed: false, completedAt: undefined, completedById: undefined } : check)
+        : item.checklist,
+      blockedAt: action === 'block' ? changedAt : undefined,
+      completedAt: action === 'complete' ? changedAt : undefined,
+      canceledAt: action === 'cancel' ? changedAt : undefined,
+      statusReason: ['block', 'cancel'].includes(action) ? reason : undefined,
+      statusChangedAt: changedAt,
+    } : item))
+    const eventTypes: Record<TaskTransitionAction, TaskEvent['type']> = {
+      block: 'blocked', unblock: 'unblocked', complete: 'completed', reopen: 'reopened', cancel: 'canceled',
+    }
+    appendTaskEvent(task, eventTypes[action], task.status, nextStatus, reason)
+  }
+
+  const reassignTask = (taskId: string, ownerId: string, reason: string) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task) return
+    const nextStatus = ownerId === currentUser.id ? 'accepted' : 'pendingAcceptance'
+    const changedAt = new Date().toISOString()
+    setTasks((items) => items.map((item) => item.id === taskId ? {
+      ...item,
+      ownerId,
+      status: nextStatus,
+      acceptedAt: ownerId === currentUser.id ? changedAt : undefined,
+      statusReason: undefined,
+      statusChangedAt: changedAt,
+    } : item))
+    appendTaskEvent(task, 'reassigned', task.status, nextStatus, reason)
   }
 
   const uploadAttachments = async (files: File[], target: UploadTarget) => {
@@ -437,6 +584,9 @@ export function ClinicProvider({
     memberships,
     messages,
     tasks,
+    taskEvents,
+    taskTemplates,
+    taskSchedules,
     attachments,
     meetings,
     meetingResponses,
@@ -455,6 +605,12 @@ export function ClinicProvider({
     sendMessage,
     createTask,
     updateTask,
+    respondToTask,
+    transitionTask,
+    reassignTask,
+    setTaskScheduleActive: (scheduleId, active) => {
+      setTaskSchedules((items) => items.map((item) => item.id === scheduleId ? { ...item, active } : item))
+    },
     uploadAttachments,
     createMeeting,
     respondToMeeting,
@@ -557,6 +713,22 @@ export function ClinicProvider({
             item.completed,
           ),
         ))
+        await snapshotQuery.refetch()
+      },
+      respondToTask: async (taskId, response, reason) => {
+        await repository.respondToTask(scope, taskId, response, reason)
+        await snapshotQuery.refetch()
+      },
+      transitionTask: async (taskId, action, reason, reopenItemId) => {
+        await repository.transitionTask(scope, taskId, action, reason, reopenItemId)
+        await snapshotQuery.refetch()
+      },
+      reassignTask: async (taskId, ownerId, reason) => {
+        await repository.reassignTask(scope, taskId, ownerId, reason)
+        await snapshotQuery.refetch()
+      },
+      setTaskScheduleActive: async (scheduleId, active) => {
+        await repository.setTaskScheduleActive(scope, scheduleId, active)
         await snapshotQuery.refetch()
       },
       uploadAttachments: async () => {

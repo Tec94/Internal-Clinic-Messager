@@ -2,7 +2,7 @@ import {
   execFileSync,
   spawn,
 } from 'node:child_process'
-import { createHmac, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { Upload } from 'tus-js-client'
@@ -85,30 +85,18 @@ try {
     source: 'policy',
   })
 
-  await expectData(
+  const signedIn = await expectData(
     user.auth.signInWithPassword({ email, password }),
     'sign in local attachment user',
   )
-  const enrollment = await expectData(
-    user.auth.mfa.enroll({
-      factorType: 'totp',
-      friendlyName: 'Local Attachment Test',
-    }),
-    'enroll local attachment TOTP factor',
-  )
-  await expectData(
-    user.auth.mfa.challengeAndVerify({
-      factorId: enrollment.id,
-      code: totp(enrollment.totp.secret),
-    }),
-    'verify local attachment TOTP factor',
-  )
   const sessionData = await expectData(
     user.auth.getSession(),
-    'restore the local attachment AAL2 session',
+    'restore the local attachment password session',
   )
   const accessToken = sessionData.session?.access_token
-  if (!accessToken) throw new Error('The attachment AAL2 session is missing.')
+  if (!accessToken || accessToken !== signedIn.session?.access_token) {
+    throw new Error('The attachment password session is missing.')
+  }
 
   const initialized = await expectData(
     user
@@ -385,37 +373,6 @@ function supabaseExecutable() {
     '.bin',
     process.platform === 'win32' ? 'supabase.cmd' : 'supabase',
   )
-}
-
-function totp(secret) {
-  const key = decodeBase32(secret)
-  const counter = Buffer.alloc(8)
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)))
-  const digest = createHmac('sha1', key).update(counter).digest()
-  const offset = digest[digest.length - 1] & 0x0f
-  const binary = (
-    ((digest[offset] & 0x7f) << 24)
-    | ((digest[offset + 1] & 0xff) << 16)
-    | ((digest[offset + 2] & 0xff) << 8)
-    | (digest[offset + 3] & 0xff)
-  )
-  return String(binary % 1_000_000).padStart(6, '0')
-}
-
-function decodeBase32(value) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-  const normalized = value.toUpperCase().replace(/=+$/u, '').replace(/\s+/gu, '')
-  let bits = ''
-  for (const character of normalized) {
-    const index = alphabet.indexOf(character)
-    if (index < 0) throw new Error('TOTP secret is not valid base32.')
-    bits += index.toString(2).padStart(5, '0')
-  }
-  const bytes = []
-  for (let index = 0; index + 8 <= bits.length; index += 8) {
-    bytes.push(Number.parseInt(bits.slice(index, index + 8), 2))
-  }
-  return Buffer.from(bytes)
 }
 
 function delay(duration) {

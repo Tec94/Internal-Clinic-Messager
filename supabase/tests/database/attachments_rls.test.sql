@@ -206,7 +206,7 @@ values
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
-  '{"sub":"10000000-0000-0000-0000-000000000021","role":"authenticated","aal":"aal2"}',
+  '{"sub":"10000000-0000-0000-0000-000000000021","role":"authenticated","aal":"aal1"}',
   true
 );
 
@@ -220,7 +220,7 @@ select lives_ok(
       '70000000-0000-0000-0000-000000000021'
     )
   $$,
-  'a writable AAL2 member can initialize a 10 MiB attachment'
+  'a writable AAL1 member can initialize a 10 MiB attachment'
 );
 select is(
   (
@@ -533,8 +533,8 @@ select set_config(
 );
 select is(
   (select count(*) from public.attachments),
-  0::bigint,
-  'AAL1 sessions cannot read attachment metadata'
+  1::bigint,
+  'an active AAL1 member can read authorized attachment metadata'
 );
 select is(
   (
@@ -544,7 +544,7 @@ select is(
     )
   ),
   0::bigint,
-  'AAL1 sessions cannot authorize downloads'
+  'an AAL1 member cannot authorize a cross-organization download'
 );
 reset role;
 

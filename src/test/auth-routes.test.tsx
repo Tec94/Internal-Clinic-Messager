@@ -11,12 +11,6 @@ const auth = vi.hoisted(() => ({
   onAuthStateChange: vi.fn(),
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
-  mfa: {
-    getAuthenticatorAssuranceLevel: vi.fn(),
-    listFactors: vi.fn(),
-    enroll: vi.fn(),
-    challengeAndVerify: vi.fn(),
-  },
 }))
 
 const database = vi.hoisted(() => ({
@@ -38,14 +32,6 @@ describe('Supabase auth routes', () => {
     auth.onAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
     })
-    auth.mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({
-      data: { currentLevel: 'aal2' },
-      error: null,
-    })
-    auth.mfa.listFactors.mockResolvedValue({
-      data: { totp: [], phone: [] },
-      error: null,
-    })
     auth.signInWithPassword.mockResolvedValue({
       data: { user: null, session: null },
       error: null,
@@ -53,7 +39,6 @@ describe('Supabase auth routes', () => {
     auth.signOut.mockResolvedValue({ error: null })
     database.rpc.mockResolvedValue({ data: null, error: null })
     mockMemberships([])
-    vi.stubEnv('VITE_ENABLE_MFA_BYPASS', 'false')
   })
 
   it('redirects signed-out users to the invitation-only login', async () => {
@@ -79,7 +64,7 @@ describe('Supabase auth routes', () => {
     })
   })
 
-  it('restores an active AAL2 session only after membership is verified', async () => {
+  it('restores an active password session after membership is verified', async () => {
     restoreSession()
     mockMemberships([
       membership({
@@ -92,53 +77,6 @@ describe('Supabase auth routes', () => {
     expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Role')).not.toBeInTheDocument()
     expect(database.from).toHaveBeenCalledWith('organization_members')
-  })
-
-  it('keeps an AAL1 session on MFA when the client bypass is disabled', async () => {
-    restoreSession()
-    auth.mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({
-      data: { currentLevel: 'aal1' },
-      error: null,
-    })
-
-    renderAuthenticatedApp()
-
-    expect(
-      await screen.findByRole('heading', { name: 'Verify your identity' }),
-    ).toBeInTheDocument()
-    expect(database.rpc).not.toHaveBeenCalledWith(
-      'begin_development_mfa_bypass',
-    )
-  })
-
-  it('uses an unexpired server allowlist and labels the development bypass', async () => {
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    vi.stubEnv('VITE_ENABLE_MFA_BYPASS', 'true')
-    restoreSession()
-    auth.mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({
-      data: { currentLevel: 'aal1' },
-      error: null,
-    })
-    database.rpc.mockImplementation(async (name: string) => (
-      name === 'begin_development_mfa_bypass'
-        ? { data: expiresAt, error: null }
-        : { data: null, error: null }
-    ))
-    mockMemberships([
-      membership({
-        onboarding_progress: { status: 'complete' },
-      }),
-    ])
-
-    renderAuthenticatedApp()
-
-    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument()
-    expect(
-      screen.getByText(/MFA bypass active for development testing/i),
-    ).toBeInTheDocument()
-    expect(database.rpc).toHaveBeenCalledWith(
-      'begin_development_mfa_bypass',
-    )
   })
 
   it('keeps suspended members outside the workspace', async () => {

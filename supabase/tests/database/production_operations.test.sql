@@ -424,10 +424,10 @@ select set_config(
 );
 select is(
   private.session_satisfies_mfa(),
-  false,
-  'ordinary AAL1 sessions remain denied'
+  true,
+  'an authenticated AAL1 session satisfies the compatibility gate'
 );
-select throws_ok(
+select lives_ok(
   $$
     select public.authorize_message_notification(
       (
@@ -438,9 +438,7 @@ select throws_ok(
       )
     )
   $$,
-  '42501',
-  'AAL2 is required to send notifications.',
-  'an AAL1 message author cannot authorize notification delivery'
+  'an AAL1 message author can authorize notification delivery'
 );
 
 reset role;
@@ -464,8 +462,8 @@ select set_config(
 );
 select is(
   private.session_satisfies_mfa(),
-  false,
-  'the MFA bypass fails closed when the database is not development'
+  true,
+  'the production environment accepts authenticated AAL1 sessions'
 );
 
 select * from finish();

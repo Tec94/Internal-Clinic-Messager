@@ -8,8 +8,9 @@ and incident response.
 ## Environment order
 
 Use separate Supabase and Vercel projects for development, staging, and
-production. Never copy synthetic accounts, MFA bypass rows, or
-`ATTACHMENT_SCAN_MODE=dev_bypass` into staging or production.
+production. Never copy synthetic accounts or
+`ATTACHMENT_SCAN_MODE=dev_bypass` into staging or production. Historical MFA
+bypass rows are inactive and must not be promoted.
 
 Promote one reviewed commit through these environments:
 
@@ -22,6 +23,11 @@ Promote one reviewed commit through these environments:
 Apply all tracked migrations. Deploy both attachment functions and
 `send-operational-notification` with JWT verification enabled. Create both
 private 10 MiB buckets from `supabase/config.toml`.
+
+Apply `20260802144218_phase_out_mfa.sql` before deploying the matching client.
+Disable TOTP enrollment and verification in the target Supabase Auth settings
+for this release. Do not delete existing user factors; they remain available
+if the clinic restores MFA later.
 
 Set these server-only finalizer secrets in development:
 
@@ -45,10 +51,10 @@ secret after staff changes, suspected exposure, or a scanner access incident.
 
 ## Test accounts and employees
 
-The hosted development project contains the full 14-account matrix. Twelve
-accounts have verified TOTP factors, the dedicated AAL1 account remains
-without MFA, and the bypass account has a six-day development exception.
-Real hosted sessions passed for all 14 authorization scenarios.
+The hosted development project contains the full 14-account matrix. The stable
+account identifiers retain historical AAL-related names, but every account now
+uses the same email-and-password flow. Re-run the hosted authorization matrix
+after applying the phase-out migration.
 
 The provisioner uses the Supabase Auth Admin API. Set the URL and service-role
 key only for the command process. Do not save the service-role key in a browser
@@ -65,9 +71,9 @@ npm run provision:test-accounts
 Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY
 ```
 
-The generated credential file is ignored by Git. It contains the hosted TOTP
-test secrets. Store it in the approved development password manager after the
-test run.
+The generated credential file is ignored by Git. It contains account email
+addresses and passwords. Store it in the approved development password manager
+after the test run.
 
 Copy `scripts/employee-accounts.example.json` to the ignored
 `.employee-accounts.local.json` file. Add only existing employees, then run:
@@ -112,7 +118,6 @@ Set these public production variables:
 
 ```text
 VITE_REQUIRE_AUTH=true
-VITE_ENABLE_MFA_BYPASS=false
 VITE_ENABLE_ATTACHMENTS=true
 VITE_ENABLE_ZALO_LAUNCHER=true
 VITE_SUPABASE_URL=https://PROJECT.supabase.co
@@ -160,7 +165,7 @@ Attach these results to the release:
 
 - Frontend tests, type-check, lint, and production build.
 - pgTAP, Realtime, resumable upload, promotion, signed download, and DB lint.
-- Hosted AAL2 tests for every allowed and denied test account.
+- Hosted email-and-password tests for every allowed and denied test account.
 - Scanner clean-file and EICAR evidence.
 - Backup restoration and incident-response drill evidence.
 - PWA install, update, offline, and notification evidence on Android and iOS.

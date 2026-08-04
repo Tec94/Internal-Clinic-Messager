@@ -312,8 +312,8 @@ select set_config(
 );
 select is(
   (select count(*) from public.organizations),
-  0::bigint,
-  'an AAL1 member is denied by the restrictive MFA policy'
+  1::bigint,
+  'an active AAL1 member can read their organization'
 );
 reset role;
 

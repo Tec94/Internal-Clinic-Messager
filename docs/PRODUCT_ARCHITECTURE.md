@@ -40,9 +40,9 @@ mistaken for durable or hosted behavior.
   departments, assignments, scoped roles, invitations, onboarding, channels,
   channel memberships, messages, receipts, tasks, meetings, announcements,
   access requests, account settings, and metadata-only audit events.
-- The authentication shell requires TOTP AAL2, checks active, suspended, and
-  expired membership states, and completes onboarding transactionally. An
-  expiring, per-user exception supports development testing only.
+- The authentication shell accepts email-and-password sessions, checks active,
+  suspended, and expired membership states, and completes onboarding
+  transactionally.
 - The Supabase messaging repository supports scoped channel discovery,
   keyset-paginated reads, idempotent sends, and authorized Realtime updates.
 - The attachment repository initializes opaque metadata, uploads resumable
@@ -69,8 +69,9 @@ never share the same access path as available files.
 
 - Both buckets are private, limited to 10 MiB, and restricted to PDF, Word,
   Excel, PNG, and JPEG MIME types.
-- Active AAL2 senders can upload only the opaque quarantine path issued by the
-  database. Clients cannot read quarantine or write to the available bucket.
+- Active authenticated senders can upload only the opaque quarantine path
+  issued by the database. Clients cannot read quarantine or write to the
+  available bucket.
 - A JWT-verifying Edge Function rechecks authorization and stored object
   metadata before moving a file between buckets.
 - `dev_bypass` is explicit development configuration. It records an audit
@@ -80,25 +81,20 @@ never share the same access path as available files.
 - Downloads require current channel read access and use a 60-second signed URL.
 - The database never stores a permanent public URL.
 
-## Development authentication boundary
+## Password authentication boundary
 
-MFA remains the default identity requirement. Development testing can use a
-short-lived exception without changing Supabase JWT claims or making the
-frontend the authorization source.
+The current release uses administrator-created email-and-password accounts.
+Supabase password sign-in creates an authenticated AAL1 session, which the
+database accepts without a second-factor challenge.
 
-- The browser requests the exception only when
-  `VITE_ENABLE_MFA_BYPASS=true`.
-- The database permits AAL1 only for a user in the private, server-managed
-  allowlist with an expiry in the future.
-- Each bypass lasts no more than seven days, and first use is recorded once per
-  Auth session in a private event ledger.
-- Restrictive RLS, tenant membership, channel access, suspension, expiry, and
-  sender checks continue to apply.
-- The authenticated shell displays a persistent development warning and
-  returns to MFA when the bypass expires.
-
-Staging and production must contain no bypass entries and must keep the client
-flag disabled.
+- RLS still enforces tenant membership, channel access, role scope,
+  suspension, expiry, and sender identity.
+- The frontend does not enroll, challenge, verify, or route users through MFA.
+- The account provisioner creates passwords but does not enroll TOTP factors.
+- Existing enrolled factors remain attached to their users so MFA can return
+  later without deleting factor records during this phase-out.
+- The historical private bypass tables remain inactive and are not part of the
+  current authentication path.
 
 ## Department and location taxonomy
 

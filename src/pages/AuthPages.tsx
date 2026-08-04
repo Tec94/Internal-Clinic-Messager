@@ -1,4 +1,4 @@
-import { CircleAlert, ClipboardCheck, KeyRound, ShieldCheck } from 'lucide-react'
+import { CircleAlert, ClipboardCheck, KeyRound } from 'lucide-react'
 import { type FormEvent, type PropsWithChildren, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -76,119 +76,6 @@ export function LoginPage() {
           {submitting ? t('auth.signingIn') : t('auth.signIn')}
         </Button>
       </form>
-    </AuthFrame>
-  )
-}
-
-export function MfaPage() {
-  const { t } = useTranslation()
-  const { session, status, refreshAssurance, signOut } = useAuth()
-  const location = useLocation()
-  const navigate = useNavigate()
-  const [factorId, setFactorId] = useState('')
-  const [qrCode, setQrCode] = useState('')
-  const [secret, setSecret] = useState('')
-  const [code, setCode] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const destination = returnPath(location.state)
-
-  useEffect(() => {
-    if (status === 'signedOut') navigate('/login', { replace: true })
-    if (!['loading', 'signedOut', 'mfa'].includes(status)) {
-      navigate(authDestination(status, destination), { replace: true })
-    }
-  }, [destination, navigate, status])
-
-  useEffect(() => {
-    if (!session || status !== 'mfa') return
-    let mounted = true
-    void supabase.auth.mfa.listFactors().then(({ data, error: factorsError }) => {
-      if (!mounted) return
-      const verified = data?.totp.find((factor) => factor.status === 'verified')
-      if (verified) setFactorId(verified.id)
-      if (factorsError) setError(factorsError.message)
-      setLoading(false)
-    })
-    return () => {
-      mounted = false
-    }
-  }, [session, status])
-
-  const enroll = async () => {
-    setSubmitting(true)
-    setError('')
-    const { data, error: enrollError } = await supabase.auth.mfa.enroll({
-      factorType: 'totp',
-      friendlyName: 'YKSG Authenticator',
-    })
-    setSubmitting(false)
-    if (enrollError) {
-      setError(enrollError.message)
-      return
-    }
-    setFactorId(data.id)
-    setQrCode(data.totp.qr_code)
-    setSecret(data.totp.secret)
-  }
-
-  const verify = async (event: FormEvent) => {
-    event.preventDefault()
-    setSubmitting(true)
-    setError('')
-    const { error: verifyError } =
-      await supabase.auth.mfa.challengeAndVerify({
-        factorId,
-        code: code.trim(),
-      })
-    if (verifyError) {
-      setSubmitting(false)
-      setError(verifyError.message)
-      return
-    }
-    const assuranceError = await refreshAssurance()
-    setSubmitting(false)
-    if (assuranceError) setError(assuranceError)
-  }
-
-  return (
-    <AuthFrame>
-      <div className="auth-card__icon"><ShieldCheck aria-hidden="true" /></div>
-      <h1>{t('auth.mfaTitle')}</h1>
-      <p>{factorId ? t('auth.mfaCodeHelp') : t('auth.mfaSetupHelp')}</p>
-      {loading ? <p role="status">{t('common.loading')}</p> : null}
-      {!loading && !factorId ? (
-        <Button variant="primary" onClick={() => void enroll()} disabled={submitting}>
-          {t('auth.setupAuthenticator')}
-        </Button>
-      ) : null}
-      {qrCode ? (
-        <div className="auth-qr">
-          <img src={qrCode} alt={t('auth.qrAlt')} />
-          <p>{t('auth.secretLabel')} <code>{secret}</code></p>
-        </div>
-      ) : null}
-      {factorId ? (
-        <form className="auth-form" onSubmit={verify}>
-          <label>
-            {t('auth.verificationCode')}
-            <input
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{6}"
-              required
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-            />
-          </label>
-          {error ? <p className="auth-error" role="alert">{error}</p> : null}
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? t('auth.verifying') : t('auth.verify')}
-          </Button>
-        </form>
-      ) : error ? <p className="auth-error" role="alert">{error}</p> : null}
-      <Button onClick={() => void signOut()}>{t('auth.signOut')}</Button>
     </AuthFrame>
   )
 }
@@ -405,8 +292,6 @@ function authDestination(status: string, activeDestination: string) {
   switch (status) {
     case 'active':
       return activeDestination
-    case 'mfa':
-      return '/mfa'
     case 'onboarding':
       return '/onboarding'
     case 'suspended':

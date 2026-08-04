@@ -63,7 +63,6 @@ const manifest = {
       email: 'test.owner.aal2@yksg.example',
       fullName: 'Test Owner AAL2',
       role: 'owner',
-      aal: 'aal2',
       roleLocations: ['district-1', 'district-7'],
       roleDepartments: ['operations', 'front-desk'],
     },
@@ -73,7 +72,6 @@ const manifest = {
       email: 'test.admin.aal2@yksg.example',
       fullName: 'Test Admin AAL2',
       role: 'org_admin',
-      aal: 'aal2',
     },
     {
       ...shared,
@@ -81,7 +79,6 @@ const manifest = {
       email: 'test.location.manager@yksg.example',
       fullName: 'Test Location Manager',
       role: 'location_manager',
-      aal: 'aal2',
       roleLocations: ['district-1'],
     },
     {
@@ -90,7 +87,6 @@ const manifest = {
       email: 'test.department.lead@yksg.example',
       fullName: 'Test Department Lead',
       role: 'department_lead',
-      aal: 'aal2',
       roleDepartments: ['operations'],
     },
     {
@@ -99,7 +95,6 @@ const manifest = {
       email: 'test.staff.sender@yksg.example',
       fullName: 'Test Staff Sender',
       role: 'staff',
-      aal: 'aal2',
     },
     {
       ...shared,
@@ -107,7 +102,6 @@ const manifest = {
       email: 'test.staff.viewer@yksg.example',
       fullName: 'Test Staff Viewer',
       role: 'staff',
-      aal: 'aal2',
       channelAccess: { operations: 'view' },
     },
     {
@@ -116,7 +110,6 @@ const manifest = {
       email: 'test.staff.multilocation@yksg.example',
       fullName: 'Test Multi-location Staff',
       role: 'staff',
-      aal: 'aal2',
       assignments: [
         { location: 'district-1', department: 'operations', primary: true },
         { location: 'district-7', department: 'front-desk', primary: false },
@@ -132,7 +125,6 @@ const manifest = {
       expiresAt: expiresSoon,
       roleExpiresAt: expiresSoon,
       channelAccessExpiresAt: expiresSoon,
-      aal: 'aal2',
     },
     {
       ...shared,
@@ -140,7 +132,6 @@ const manifest = {
       email: 'test.it.support@yksg.example',
       fullName: 'Test IT Support',
       role: 'it_support',
-      aal: 'aal2',
     },
     {
       ...shared,
@@ -148,7 +139,6 @@ const manifest = {
       email: 'test.aal1@yksg.example',
       fullName: 'Test AAL1 Staff',
       role: 'staff',
-      aal: 'aal1',
     },
     {
       ...shared,
@@ -156,7 +146,6 @@ const manifest = {
       email: 'test.bypass@yksg.example',
       fullName: 'Test Development Bypass',
       role: 'staff',
-      aal: 'bypass',
     },
     {
       ...shared,
@@ -165,7 +154,6 @@ const manifest = {
       fullName: 'Test Suspended Staff',
       role: 'staff',
       status: 'suspended',
-      aal: 'aal2',
     },
     {
       ...shared,
@@ -175,14 +163,12 @@ const manifest = {
       role: 'staff',
       startsAt: new Date(now - 60 * 86_400_000).toISOString(),
       expiresAt: expired,
-      aal: 'aal2',
     },
     {
       key: 'outsider',
       email: 'test.outsider@yksg.example',
       fullName: 'Test Outsider',
       outsider: true,
-      aal: 'aal2',
     },
   ],
 }

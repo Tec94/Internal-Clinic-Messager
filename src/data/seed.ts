@@ -114,13 +114,13 @@ export const messages: Message[] = [
 ]
 
 export const tasks: Task[] = [
-  { id: 'task-schedule', title: 'Xác nhận thay đổi lịch bác sĩ Nguyễn', channelId: 'same-day-schedule', ownerId: 'user-manager', collaboratorIds: ['user-float'], dueAt: '2026-07-06T14:00:00+07:00', status: 'open', sourceMessageId: 'msg-7', checklist: [
-    { id: 'check-1', label: 'Cập nhật lịch', completed: true },
+  { id: 'task-schedule', title: 'Xác nhận thay đổi lịch bác sĩ Nguyễn', channelId: 'same-day-schedule', ownerId: 'user-manager', createdById: 'user-manager', collaboratorIds: ['user-float'], dueAt: '2026-07-06T14:00:00+07:00', status: 'inProgress', acceptedAt: '2026-07-06T09:00:00+07:00', statusChangedAt: '2026-07-06T09:10:00+07:00', sourceMessageId: 'msg-7', checklist: [
+    { id: 'check-1', label: 'Cập nhật lịch', completed: true, completedById: 'user-manager', completedAt: '2026-07-06T09:10:00+07:00' },
     { id: 'check-2', label: 'Gọi quản lý chuyên môn', completed: false },
     { id: 'check-3', label: 'Thông báo trưởng nhóm lễ tân', completed: false },
   ], attachmentIds: ['attachment-sop'] },
-  { id: 'task-terminal', title: 'Kiểm tra máy check-in B', channelId: 'front-desk-home', ownerId: 'user-employee', collaboratorIds: ['user-lead'], dueAt: '2026-07-06T11:30:00+07:00', status: 'inProgress', sourceMessageId: 'msg-2', checklist: [
-    { id: 'check-terminal-1', label: 'Chuyển luồng sang máy A', completed: true },
+  { id: 'task-terminal', title: 'Kiểm tra máy check-in B', channelId: 'front-desk-home', ownerId: 'user-employee', createdById: 'user-lead', collaboratorIds: ['user-lead'], dueAt: '2026-07-06T11:30:00+07:00', status: 'inProgress', acceptedAt: '2026-07-06T08:55:00+07:00', statusChangedAt: '2026-07-06T09:02:00+07:00', sourceMessageId: 'msg-2', checklist: [
+    { id: 'check-terminal-1', label: 'Chuyển luồng sang máy A', completed: true, completedById: 'user-employee', completedAt: '2026-07-06T09:02:00+07:00' },
     { id: 'check-terminal-2', label: 'Khởi động lại máy B', completed: false },
   ], attachmentIds: ['attachment-guide'] },
 ]

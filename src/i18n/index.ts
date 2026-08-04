@@ -3,7 +3,7 @@ import { initReactI18next } from 'react-i18next'
 import { en } from './locales/en'
 import { vi } from './locales/vi'
 
-const savedLocale = localStorage.getItem('clinic-locale')
+const savedLocale = globalThis.localStorage?.getItem('clinic-locale')
 const initialLocale = savedLocale ?? 'vi-VN'
 
 void i18n.use(initReactI18next).init({

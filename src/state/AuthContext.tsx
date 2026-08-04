@@ -14,13 +14,11 @@ import { supabase } from '../utils/supabase'
 type AuthStatus =
   | 'loading'
   | 'signedOut'
-  | 'mfa'
   | 'onboarding'
   | 'active'
   | 'suspended'
   | 'expired'
   | 'error'
-type AssuranceLevel = string | null
 
 interface AuthMembership {
   id: string
@@ -31,12 +29,9 @@ interface AuthContextValue {
   session: Session | null
   status: AuthStatus
   membership: AuthMembership | null
-  mfaBypassed: boolean
-  mfaBypassExpiresAt: string | null
   authorizationError: string | null
   signIn: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<string | null>
-  refreshAssurance: () => Promise<string | null>
   refreshAccess: () => Promise<string | null>
   retryAuthorization: () => void
 }
@@ -60,40 +55,8 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>()
-  const [assurance, setAssurance] = useState<AssuranceLevel>()
   const [access, setAccess] = useState<AccessState | null>()
-  const [mfaBypassExpiresAt, setMfaBypassExpiresAt] = useState<string | null>(null)
   const [authorizationError, setAuthorizationError] = useState<string | null>(null)
-
-  const refreshAssurance = useCallback(async () => {
-    const { data, error } =
-      await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    if (error) {
-      setAssurance(null)
-      setAuthorizationError(error.message)
-      return error.message
-    }
-
-    let developmentBypassExpiresAt: string | null = null
-    if (
-      data.currentLevel !== 'aal2'
-      && import.meta.env.VITE_ENABLE_MFA_BYPASS === 'true'
-    ) {
-      const bypass = await supabase.rpc('begin_development_mfa_bypass')
-      if (
-        !bypass.error
-        && typeof bypass.data === 'string'
-        && Date.parse(bypass.data) > Date.now()
-      ) {
-        developmentBypassExpiresAt = bypass.data
-      }
-    }
-
-    setAuthorizationError(null)
-    setAssurance(data.currentLevel)
-    setMfaBypassExpiresAt(developmentBypassExpiresAt)
-    return null
-  }, [])
 
   const refreshAccess = useCallback(async () => {
     if (!session) {
@@ -145,18 +108,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return
       setSession(nextSession)
-      setAssurance(nextSession ? undefined : null)
       setAccess(nextSession ? undefined : null)
-      setMfaBypassExpiresAt(null)
       setAuthorizationError(null)
     })
 
     void supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return
       setSession(data.session)
-      setAssurance(data.session ? undefined : null)
       setAccess(data.session ? undefined : null)
-      setMfaBypassExpiresAt(null)
       setAuthorizationError(null)
     })
 
@@ -167,35 +126,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [])
 
   useEffect(() => {
-    if (!session || assurance !== undefined) return
-    void refreshAssurance()
-  }, [assurance, refreshAssurance, session])
-
-  const mfaBypassed = (
-    assurance !== 'aal2'
-    && mfaBypassExpiresAt !== null
-  )
-  const mfaSatisfied = assurance === 'aal2' || mfaBypassed
-
-  useEffect(() => {
-    if (!session || !mfaSatisfied || access !== undefined) return
+    if (!session || access !== undefined) return
     void refreshAccess()
-  }, [access, mfaSatisfied, refreshAccess, session])
-
-  useEffect(() => {
-    if (!mfaBypassExpiresAt) return
-    const remaining = Date.parse(mfaBypassExpiresAt) - Date.now()
-    if (remaining <= 0) {
-      setMfaBypassExpiresAt(null)
-      setAccess(undefined)
-      return
-    }
-    const timeout = window.setTimeout(() => {
-      setMfaBypassExpiresAt(null)
-      setAccess(undefined)
-    }, Math.min(remaining, 2_147_483_647))
-    return () => window.clearTimeout(timeout)
-  }, [mfaBypassExpiresAt])
+  }, [access, refreshAccess, session])
 
   const status: AuthStatus =
     session === undefined
@@ -204,20 +137,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         ? 'signedOut'
         : authorizationError
           ? 'error'
-          : assurance === undefined
+          : access === undefined
             ? 'loading'
-            : !mfaSatisfied
-              ? 'mfa'
-              : access === undefined
-                ? 'loading'
-                : access?.status ?? 'suspended'
+            : access?.status ?? 'suspended'
 
   const value = useMemo<AuthContextValue>(() => ({
     session: session ?? null,
     status,
     membership: access?.membership ?? null,
-    mfaBypassed,
-    mfaBypassExpiresAt,
     authorizationError,
     signIn: async (email, password) => {
       const { error } = await supabase.auth.signInWithPassword({
@@ -230,21 +157,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const { error } = await supabase.auth.signOut()
       return error?.message ?? null
     },
-    refreshAssurance,
     refreshAccess,
     retryAuthorization: () => {
       setAuthorizationError(null)
-      setAssurance(undefined)
       setAccess(undefined)
-      setMfaBypassExpiresAt(null)
     },
   }), [
     access,
     authorizationError,
-    mfaBypassed,
-    mfaBypassExpiresAt,
     refreshAccess,
-    refreshAssurance,
     session,
     status,
   ])

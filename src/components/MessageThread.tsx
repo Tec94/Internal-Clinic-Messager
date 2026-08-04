@@ -2,6 +2,7 @@ import * as ContextMenu from '@radix-ui/react-context-menu'
 import { CheckCircle2, Copy, ExternalLink, FileText, ListPlus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import i18n from '../i18n'
 import { useNativePlatform } from '../native/useNativePlatform'
 import { useClinic } from '../state/ClinicContext'
@@ -9,6 +10,7 @@ import { useMessaging, useMessagingThread } from '../state/MessagingContext'
 import type { Attachment, Channel, Meeting } from '../types/domain'
 import { Avatar, Button, StatusBadge } from './ui'
 import { NativeExternalLink } from './NativeExternalLink'
+import { TaskStatusBadge } from './TaskStatusBadge'
 
 const timeFormatters = {
   'en-US': new Intl.DateTimeFormat('en-US', {
@@ -117,29 +119,40 @@ export function MessageThread({
           (item) => message.attachmentIds.includes(item.id),
         )
         const linkedTask = tasks.find((task) => task.id === message.taskId)
+        const linkedOwner = users.find((user) => user.id === linkedTask?.ownerId)
+        const completedItems = linkedTask?.checklist.filter((item) => item.completed).length ?? 0
+        const canAssignFromMessage = Boolean(
+          supportsIntegrations
+          && onAssignTask
+          && member
+          && !message.taskId
+          && !message.meetingId,
+        )
         return (
           <ContextMenu.Root key={message.id}>
             <ContextMenu.Trigger asChild>
               <article
                 id={message.id}
                 className={`message ${message.isUrgent ? 'message--urgent' : ''} ${isMine ? 'message--mine' : ''}`}
-                onContextMenu={(event) => event.stopPropagation()}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
+                 onContextMenu={(event) => event.stopPropagation()}
+                 onPointerDown={(event) => event.stopPropagation()}
+                 tabIndex={0}
+               >
                 <Avatar initials={author.initials} presence={author.presence} />
-                <div className="message__content">
-                  <header>
+                 <div className="message__content">
+                   {canAssignFromMessage ? (
+                     <div className="message-action-rail">
+                       <button className="message-action" type="button" aria-label={t('task.assignFromMessage')} title={t('task.assignTask')} onClick={() => onAssignTask?.(message.id, message.body)}>
+                         <ListPlus size={16} aria-hidden="true" />
+                       </button>
+                     </div>
+                   ) : null}
+                   <header>
                     <strong>{author.fullName}</strong>
                     <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                     {message.isUrgent ? <StatusBadge tone="urgent">{t('common.urgent')}</StatusBadge> : null}
                   </header>
                   <div className="message__bubble"><p>{message.body}</p></div>
-                  {supportsIntegrations && onAssignTask ? (
-                    <button className="message-action" type="button" onClick={() => onAssignTask(message.id, message.body)}>
-                      <ListPlus size={15} aria-hidden="true" />
-                      {t('task.assignTask')}
-                    </button>
-                  ) : null}
                   {supportsAttachments ? messageAttachments.map((attachment) => (
                     <MessageAttachment
                       attachment={attachment}
@@ -149,11 +162,11 @@ export function MessageThread({
                     />
                   )) : null}
                   {supportsIntegrations && linkedTask ? (
-                    <button type="button" className="linked-task">
+                    <Link className="linked-task" to={`/tasks/${linkedTask.id}`}>
                       <CheckCircle2 size={19} aria-hidden="true" />
-                      <span>{linkedTask.title}</span>
-                      <StatusBadge tone={linkedTask.status === 'done' ? 'success' : 'active'}>{t(`common.${linkedTask.status === 'done' ? 'done' : 'open'}`)}</StatusBadge>
-                    </button>
+                      <span><strong>{linkedTask.title}</strong><small>{linkedOwner?.name ?? t('channel.formerStaff')} · {formatTaskDue(linkedTask.dueAt)} · {t('task.progress', { completed: completedItems, total: linkedTask.checklist.length })}</small></span>
+                      <TaskStatusBadge status={linkedTask.status} />
+                    </Link>
                   ) : null}
                   {supportsIntegrations && message.meetingId ? <MeetingCard meeting={meetings.find((meeting) => meeting.id === message.meetingId)} response={meetingResponses.find((response) => response.meetingId === message.meetingId && response.userId === currentMemberId)?.status} organizerName={users.find((user) => user.id === meetings.find((meeting) => meeting.id === message.meetingId)?.organizerId)?.name} channelName={channels.find((item) => item.id === message.channelId)?.displayName} onRespond={(status) => respondToMeeting(message.meetingId!, status)} /> : null}
                 </div>
@@ -173,11 +186,11 @@ export function MessageThread({
                   <Copy size={16} aria-hidden="true" />
                   {t('contextMenu.copyMessage')}
                 </ContextMenu.Item>
-                {supportsIntegrations && onAssignTask ? (
+                {canAssignFromMessage ? (
                   <ContextMenu.Item
                     className="context-menu__item"
                     onSelect={() => {
-                      window.setTimeout(() => onAssignTask(message.id, message.body), 0)
+                      window.setTimeout(() => onAssignTask?.(message.id, message.body), 0)
                     }}
                   >
                     <ListPlus size={16} aria-hidden="true" />
@@ -275,6 +288,16 @@ function formatTime(value: string) {
 function formatMeetingTime(value: string, timeOnly = false) {
   const formatters = timeOnly ? timeFormatters : meetingFormatters
   return formatters[activeLocale()].format(new Date(value))
+}
+
+function formatTaskDue(value: string) {
+  return new Intl.DateTimeFormat(i18n.language, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(new Date(value))
 }
 
 function formatMeetingUrl(value: string) {

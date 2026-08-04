@@ -37,6 +37,27 @@ export type AnnouncementStatus = 'draft' | 'scheduled' | 'published' | 'expired'
 export type AnnouncementPriority = 'standard' | 'urgent'
 export type MeetingProvider = 'zoom' | 'googleMeet'
 export type MeetingResponseStatus = 'accepted' | 'declined'
+export type TaskStatus =
+  | 'pendingAcceptance'
+  | 'accepted'
+  | 'inProgress'
+  | 'blocked'
+  | 'done'
+  | 'declined'
+  | 'canceled'
+export type TaskEventType =
+  | 'assigned'
+  | 'selfCreated'
+  | 'accepted'
+  | 'declined'
+  | 'started'
+  | 'blocked'
+  | 'unblocked'
+  | 'completed'
+  | 'reassigned'
+  | 'reopened'
+  | 'canceled'
+export type TaskRecurrence = 'daily' | 'weekly' | 'monthly'
 
 export interface Organization {
   id: string
@@ -168,18 +189,97 @@ export interface Message {
   meetingId?: string
 }
 
+export interface TaskChecklistItem {
+  id: string
+  label: string
+  completed: boolean
+  completedById?: string
+  completedAt?: string
+}
+
 export interface Task {
   id: string
   title: string
   channelId: string
   ownerId: string
+  createdById: string
   collaboratorIds: string[]
   dueAt: string
-  status: 'open' | 'inProgress' | 'done'
-  checklist: Array<{ id: string; label: string; completed: boolean }>
+  status: TaskStatus
+  checklist: TaskChecklistItem[]
   attachmentIds: string[]
   sourceMessageId?: string
+  acceptedAt?: string
+  declinedAt?: string
+  blockedAt?: string
+  completedAt?: string
+  canceledAt?: string
+  statusReason?: string
+  statusChangedAt: string
+  templateId?: string
+  scheduleId?: string
+  occurrenceDueAt?: string
 }
+
+export type TaskSummary = Pick<
+  Task,
+  | 'id'
+  | 'title'
+  | 'channelId'
+  | 'ownerId'
+  | 'createdById'
+  | 'dueAt'
+  | 'status'
+  | 'statusReason'
+  | 'statusChangedAt'
+> & { completedItems: number; totalItems: number }
+
+export interface TaskEvent {
+  id: string
+  taskId: string
+  actorId?: string
+  type: TaskEventType
+  fromStatus?: TaskStatus
+  toStatus: TaskStatus
+  reason?: string
+  metadata: Record<string, string | number | boolean>
+  createdAt: string
+}
+
+export interface TaskDetail extends Task {
+  events: TaskEvent[]
+}
+
+export interface TaskTemplate {
+  id: string
+  name: string
+  title: string
+  createdById: string
+  visibility: 'private' | 'organization' | 'location' | 'department'
+  locationId?: string
+  departmentId?: string
+  checklist: string[]
+}
+
+export interface TaskSchedule {
+  id: string
+  templateId: string
+  createdById: string
+  channelId: string
+  ownerId: string
+  frequency: TaskRecurrence
+  weekdays: number[]
+  monthDay?: number
+  dueLocalTime: string
+  timezone: string
+  createLeadMinutes: number
+  nextDueAt: string
+  active: boolean
+}
+
+export type WorkAgendaItem =
+  | { kind: 'task'; startsAt: string; task: TaskSummary }
+  | { kind: 'meeting'; startsAt: string; meeting: Meeting }
 
 export interface Meeting {
   id: string
@@ -242,7 +342,16 @@ export interface CreateTaskInput {
   checklist: string[]
   attachmentIds?: string[]
   sourceMessageId?: string
+  recurrence?: {
+    frequency: TaskRecurrence
+    weekdays: number[]
+    monthDay?: number
+    timezone: string
+    createLeadMinutes: number
+  }
 }
+
+export type TaskTransitionAction = 'block' | 'unblock' | 'complete' | 'reopen' | 'cancel'
 
 export interface UpdateTaskInput {
   title?: string

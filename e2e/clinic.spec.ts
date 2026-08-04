@@ -55,6 +55,59 @@ test('task panel opens on demand, restores focus, and preserves viewport width',
   await expect(trigger).toBeFocused()
 })
 
+test('manager assigns from message hover and the worker accepts the task', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Fine-pointer assignment workflow')
+  await page.goto('/channels/front-desk-home')
+  const source = page.getByText('Chào buổi sáng. Hướng dẫn bàn giao mới đã được cập nhật để mọi người cùng sử dụng.')
+  const message = source.locator('xpath=ancestor::article[1]')
+  await message.hover()
+  const assignAction = message.getByRole('button', { name: 'Assign this message as a task' })
+  await expect(assignAction).toBeVisible()
+  await assignAction.click()
+
+  const dialog = page.getByRole('dialog', { name: 'Assign task' })
+  await expect(dialog.getByLabel('Owner')).toHaveText('Choose an assignee')
+  await expect(dialog.getByLabel('Due')).toHaveValue('')
+  await dialog.getByLabel('Task title').fill('Confirm tomorrow opening coverage')
+  await dialog.getByLabel('Owner').click()
+  await page.getByRole('option', { name: 'Phạm Ngọc Linh' }).click()
+  await dialog.getByLabel('Due').fill(new Date(Date.now() + 86_400_000).toISOString().slice(0, 16))
+  await dialog.getByRole('button', { name: 'Assign task' }).click()
+
+  const linkedTask = page.getByText('Confirm tomorrow opening coverage').last()
+  await expect(linkedTask).toBeVisible()
+  await page.getByRole('button', { name: 'Preview role' }).click()
+  await page.getByRole('combobox', { name: 'Role' }).click()
+  await page.getByRole('option', { name: 'Phạm Ngọc Linh — Staff' }).click()
+  await page.getByRole('link', { name: 'Tasks' }).first().click()
+  await page.getByRole('link', { name: /Confirm tomorrow opening coverage/ }).first().click()
+  await expect(page).toHaveURL(/\/tasks\/task-/)
+  await expect(page.getByText('Response required')).toBeVisible()
+  await page.getByRole('button', { name: 'Accept task' }).click()
+  await expect(page.getByText('Accepted', { exact: true }).first()).toBeVisible()
+})
+
+test('message assignment is available from the keyboard context menu', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Keyboard context-menu workflow')
+  await page.goto('/channels/front-desk-home')
+  const message = page.getByText('Chào buổi sáng. Hướng dẫn bàn giao mới đã được cập nhật để mọi người cùng sử dụng.').locator('xpath=ancestor::article[1]')
+  await message.focus()
+  await page.keyboard.press('Shift+F10')
+  await expect(page.getByRole('menu', { name: 'Message actions' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Assign task' })).toBeVisible()
+})
+
+test('touch long-press exposes the message assignment action', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'tablet', 'Touch long-press workflow')
+  await page.goto('/channels/front-desk-home')
+  const message = page.getByText('Chào buổi sáng. Hướng dẫn bàn giao mới đã được cập nhật để mọi người cùng sử dụng.').locator('xpath=ancestor::article[1]')
+  await message.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, buttons: 1 })
+  await page.waitForTimeout(750)
+  await message.dispatchEvent('pointerup', { pointerType: 'touch', button: 0, buttons: 0 })
+  await expect(page.getByRole('menu', { name: 'Message actions' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Assign task' })).toBeVisible()
+})
+
 test('primary navigation order and module searches are consistent', async ({ page }, testInfo) => {
   await page.goto('/tasks')
   const isPhone = testInfo.project.name.startsWith('phone-')
@@ -72,7 +125,7 @@ test('primary navigation order and module searches are consistent', async ({ pag
     expect(primaryLinks).toEqual(['Inbox', 'Chat', 'Tasks', 'Documents', 'Meetings', 'People', 'Admin'])
   }
   if (testInfo.project.name === 'tablet' || isPhone) await page.getByRole('button', { name: 'Open navigation' }).click()
-  await page.getByRole('button', { name: 'All in scope' }).click()
+  await page.getByRole('button', { name: 'Team in scope' }).click()
   await page.getByPlaceholder('Search tasks, owners, or chats').fill('thay đổi')
   await expect(page.getByText('Xác nhận thay đổi lịch bác sĩ Nguyễn').first()).toBeVisible()
   if (isPhone) {
@@ -114,7 +167,7 @@ test('meetings module calendar and agenda stay within their containers', async (
   await expect(page.locator('.mini-calendar')).toBeVisible()
   await expect(page.locator('.mini-calendar__dot').first()).toBeVisible()
   const calendarFits = await page.locator('.mini-calendar').evaluate((element) => element.scrollWidth <= element.clientWidth)
-  const eventDayFits = await page.locator('.mini-calendar__day.has-meeting').first().evaluate((element) => element.scrollWidth <= element.clientWidth)
+  const eventDayFits = await page.locator('.mini-calendar__day.has-work').first().evaluate((element) => element.scrollWidth <= element.clientWidth)
   expect(calendarFits).toBe(true)
   expect(eventDayFits).toBe(true)
 })
@@ -163,7 +216,7 @@ test('admin overview uses snapshot governance rather than intake monitoring', as
 test('module workspace visual', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Desktop module baseline only')
   await page.goto('/tasks')
-  await page.getByRole('button', { name: 'All in scope' }).click()
+  await page.getByRole('button', { name: 'Team in scope' }).click()
   await page.getByText('Xác nhận thay đổi lịch bác sĩ Nguyễn').first().click()
   await expect(page.getByRole('heading', { name: 'Xác nhận thay đổi lịch bác sĩ Nguyễn' })).toBeVisible()
   await hideZaloForDesktopBaseline(page)

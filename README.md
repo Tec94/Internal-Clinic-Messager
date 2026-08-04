@@ -8,9 +8,11 @@ meetings, people, announcements, and scoped administration.
 > the non-authenticated preview. Authenticated Chat, Inbox, Tasks, Meetings,
 > directory, announcements, settings, and supported administration use
 > database repositories. Thirteen migrations are deployed to the hosted
-> development backend. The 14-account hosted authorization matrix is
-> provisioned and verified. Store approval, production secrets, scanner
-> deployment, backup evidence, and device acceptance remain release gates.
+> development backend, and the tracked fourteenth migration phases out MFA.
+> Apply that migration before deploying this frontend. The 14-account hosted
+> authorization matrix is provisioned and verified. Store approval, production
+> secrets, scanner deployment, backup evidence, and device acceptance remain
+> release gates.
 > This is not a regulatory compliance control.
 
 ## Run the application
@@ -92,25 +94,6 @@ history to another application. Read the
 [Zalo integration decision](docs/ZALO_INTEGRATION.md) for the capability
 review, security boundary, and device acceptance checks.
 
-## Development MFA bypass
-
-The development auth path supports an expiring, per-user MFA bypass. The
-browser uses it only when `VITE_ENABLE_MFA_BYPASS=true`, and the database
-authorizes it only when that user has an unexpired row in the private bypass
-allowlist. The app displays a persistent development warning while the bypass
-is active.
-
-The repository keeps the client flag off by default. This checkout enables it
-in the ignored `.env.local` file. The connected development backend currently
-has two expiring bypass entries. The synthetic bypass account expires on
-August 3, 2026 at 16:13 UTC. Bypass entries can't last longer than seven days,
-record first use per Auth session, and don't grant access to suspended,
-expired, outsider, or cross-tenant users.
-
-> **Warning:** Never add a bypass row or enable
-> `VITE_ENABLE_MFA_BYPASS` in staging or production. Delete the private
-> allowlist row to revoke the exception immediately.
-
 ## Private development attachments
 
 Authenticated message attachments use private quarantine and available
@@ -149,9 +132,9 @@ Run the local quality checks with these commands:
 
 The Supabase test command requires Docker and the local stack from
 `cmd /c npx supabase start`. It runs pgTAP RLS tests, restores a real local
-AAL2 session, verifies Realtime delivery, starts the local Edge Functions, and
-proves a resumable seven MiB quarantine upload, development promotion, atomic
-message linkage, signed download, and cleanup.
+email-and-password session, verifies Realtime delivery, starts the local Edge
+Functions, and proves a resumable seven MiB quarantine upload, development
+promotion, atomic message linkage, signed download, and cleanup.
 
 The Playwright suite covers 1280×1024 desktop, 1024×768 compact desktop,
 768×1024 tablet, 390×844 phone, 320×568 small phone, and 844×390 touch

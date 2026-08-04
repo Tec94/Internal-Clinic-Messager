@@ -107,7 +107,7 @@ values
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
-  '{"sub":"10000000-0000-0000-0000-000000000021","role":"authenticated","aal":"aal2"}',
+  '{"sub":"10000000-0000-0000-0000-000000000021","role":"authenticated","aal":"aal1"}',
   true
 );
 select lives_ok(
@@ -121,7 +121,7 @@ select lives_ok(
       true
     )
   $$,
-  'an active AAL2 member can complete their own onboarding'
+  'an active AAL1 member can complete their own onboarding'
 );
 select is(
   (
@@ -231,7 +231,7 @@ select set_config(
   '{"sub":"10000000-0000-0000-0000-000000000021","role":"authenticated","aal":"aal1"}',
   true
 );
-select throws_ok(
+select lives_ok(
   $$
     select public.complete_staff_onboarding(
       '20000000-0000-0000-0000-000000000021',
@@ -242,9 +242,7 @@ select throws_ok(
       false
     )
   $$,
-  '42501',
-  'an active member can complete only their own onboarding',
-  'an AAL1 session cannot run the onboarding workflow'
+  'an active AAL1 member can safely repeat their own onboarding workflow'
 );
 reset role;
 

@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
 import type { Channel, Task } from '../types/domain'
-import { Avatar, Button, IconButton, StatusBadge } from './ui'
+import { Avatar, Button, IconButton } from './ui'
 import { Checkbox } from './ui/motion/checkbox'
+import { TaskStatusBadge } from './TaskStatusBadge'
 
 export function IntegrationPanel({ channel, initialTab, onClose, onTabChange, onAssignTask }: { channel: Channel; initialTab: 'tasks' | 'documents'; onClose: () => void; onTabChange: (tab: 'tasks' | 'documents') => void; onAssignTask?: () => void }) {
   const { t } = useTranslation()
@@ -101,16 +102,17 @@ function PanelSection({ title, count, icon, children }: { title: string; count: 
 
 function TaskCard({ task, users, source }: { task: Task; users: ReturnType<typeof useClinic>['users']; source?: string }) {
   const { t } = useTranslation()
-  const { updateTask } = useClinic()
+  const { currentUser, updateTask } = useClinic()
   const owner = users.find((user) => user.id === task.ownerId)
+  const canCheck = (task.ownerId === currentUser.id || task.collaboratorIds.includes(currentUser.id)) && ['accepted', 'inProgress'].includes(task.status)
   const setChecklistItem = (itemId: string, completed: boolean) => {
     const checklist = task.checklist.map((item) => item.id === itemId ? { ...item, completed } : item)
     updateTask(task.id, {
       checklist,
-      status: checklist.every((item) => item.completed) ? 'done' : 'inProgress',
+      status: checklist.every((item) => item.completed) ? 'done' : checklist.some((item) => item.completed) ? 'inProgress' : 'accepted',
     })
   }
-  return <article className="panel-task"><div className="panel-title-row"><h3>{task.title}</h3><StatusBadge tone={task.status === 'done' ? 'success' : 'active'}>{task.status === 'done' ? t('common.done') : t('common.open')}</StatusBadge></div>{source ? <small className="panel-source">{source}</small> : null}<dl className="task-metadata"><div><dt><UserRound size={16} />{t('common.owner')}</dt><dd>{owner ? <><Avatar initials={owner.initials} size="small" />{owner.name}</> : '—'}</dd></div><div><dt><CalendarDays size={16} />{t('common.due')}</dt><dd className="tabular-nums">{formatDate(task.dueAt)}</dd></div></dl><div className="task-checklist">{task.checklist.map((item) => <div className="task-check-row" key={item.id}><Checkbox checked={item.completed} onCheckedChange={(checked) => setChecklistItem(item.id, checked)} aria-label={item.label} /><span>{item.label}</span>{item.completed ? <Check size={16} /> : null}</div>)}</div></article>
+  return <article className="panel-task"><div className="panel-title-row"><h3>{task.title}</h3><TaskStatusBadge status={task.status} /></div>{source ? <small className="panel-source">{source}</small> : null}<dl className="task-metadata"><div><dt><UserRound size={16} />{t('common.owner')}</dt><dd>{owner ? <><Avatar initials={owner.initials} size="small" />{owner.name}</> : '—'}</dd></div><div><dt><CalendarDays size={16} />{t('common.due')}</dt><dd className="tabular-nums">{formatDate(task.dueAt)}</dd></div></dl><div className="task-checklist">{task.checklist.map((item) => <div className="task-check-row" key={item.id}><Checkbox checked={item.completed} disabled={!canCheck} onCheckedChange={(checked) => setChecklistItem(item.id, checked)} aria-label={item.label} /><span>{item.label}</span>{item.completed ? <Check size={16} /> : null}</div>)}</div></article>
 }
 
 function formatDate(value: string) {

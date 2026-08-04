@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { createHmac, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 
@@ -86,34 +86,19 @@ try {
     source: 'policy',
   })
 
-  await expectData(
+  const signedIn = await expectData(
     user.auth.signInWithPassword({ email, password }),
     'sign in local auth user',
   )
-  const enrollment = await expectData(
-    user.auth.mfa.enroll({
-      factorType: 'totp',
-      friendlyName: 'Local Realtime Test',
-    }),
-    'enroll local TOTP factor',
-  )
-  await expectData(
-    user.auth.mfa.challengeAndVerify({
-      factorId: enrollment.id,
-      code: totp(enrollment.totp.secret),
-    }),
-    'verify local TOTP factor',
-  )
   const restoredSession = await expectData(
     user.auth.getSession(),
-    'restore the local AAL2 session',
+    'restore the local password session',
   )
-  const assurance = await expectData(
-    user.auth.mfa.getAuthenticatorAssuranceLevel(),
-    'read the local authenticator assurance level',
-  )
-  if (!restoredSession.session?.access_token || assurance.currentLevel !== 'aal2') {
-    throw new Error('TOTP verification did not return an AAL2 session.')
+  if (
+    !signedIn.session?.access_token
+    || restoredSession.session?.access_token !== signedIn.session.access_token
+  ) {
+    throw new Error('Email and password sign-in did not restore its session.')
   }
   await user.realtime.setAuth(restoredSession.session.access_token)
 
@@ -157,7 +142,7 @@ try {
     throw new Error('Realtime payload did not match the inserted message.')
   }
 
-  console.log('Local AAL2 session restoration, RLS insert, and Realtime delivery passed.')
+  console.log('Local password session restoration, RLS insert, and Realtime delivery passed.')
 } finally {
   if (realtimeChannel) await user.removeChannel(realtimeChannel)
   await cleanup()
@@ -321,35 +306,4 @@ function readLocalStatus() {
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   )
   return JSON.parse(output)
-}
-
-function totp(secret) {
-  const key = decodeBase32(secret)
-  const counter = Buffer.alloc(8)
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)))
-  const digest = createHmac('sha1', key).update(counter).digest()
-  const offset = digest[digest.length - 1] & 0x0f
-  const binary = (
-    ((digest[offset] & 0x7f) << 24)
-    | ((digest[offset + 1] & 0xff) << 16)
-    | ((digest[offset + 2] & 0xff) << 8)
-    | (digest[offset + 3] & 0xff)
-  )
-  return String(binary % 1_000_000).padStart(6, '0')
-}
-
-function decodeBase32(value) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-  const normalized = value.toUpperCase().replace(/=+$/u, '').replace(/\s+/gu, '')
-  let bits = ''
-  for (const character of normalized) {
-    const index = alphabet.indexOf(character)
-    if (index < 0) throw new Error('TOTP secret is not valid base32.')
-    bits += index.toString(2).padStart(5, '0')
-  }
-  const bytes = []
-  for (let index = 0; index + 8 <= bits.length; index += 8) {
-    bytes.push(Number.parseInt(bits.slice(index, index + 8), 2))
-  }
-  return Buffer.from(bytes)
 }
