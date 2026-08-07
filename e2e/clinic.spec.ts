@@ -1,9 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-
-const hideZaloForDesktopBaseline = async (page: Page) => {
-  await page.addStyleTag({ content: '.zalo-widget-shell { visibility: hidden !important; }' })
-}
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -19,7 +15,6 @@ test('shared shell and channel layout fit without horizontal overflow', async ({
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
   expect(overflow).toBe(false)
   if (!testInfo.project.name.startsWith('phone-')) {
-    await hideZaloForDesktopBaseline(page)
     await expect(page).toHaveScreenshot('channel-workspace.png')
   }
 })
@@ -35,7 +30,6 @@ test('channel creation matches the intended modal structure', async ({ page }, t
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
   expect(overflow).toBe(false)
   if (!testInfo.project.name.startsWith('phone-')) {
-    await hideZaloForDesktopBaseline(page)
     await expect(page).toHaveScreenshot('create-channel-dialog.png', {
       maxDiffPixelRatio: 0.015,
     })
@@ -219,7 +213,6 @@ test('module workspace visual', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Team in scope' }).click()
   await page.getByText('Xác nhận thay đổi lịch bác sĩ Nguyễn').first().click()
   await expect(page.getByRole('heading', { name: 'Xác nhận thay đổi lịch bác sĩ Nguyễn' })).toBeVisible()
-  await hideZaloForDesktopBaseline(page)
   await expect(page).toHaveScreenshot('tasks-workspace.png')
 })
 
@@ -227,7 +220,6 @@ test('graphite desktop workspace visual', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Desktop comparison only')
   await page.addInitScript(() => localStorage.setItem('clinic-theme', 'graphite-indigo'))
   await page.goto('/channels/same-day-schedule')
-  await hideZaloForDesktopBaseline(page)
   await expect(page).toHaveScreenshot('channel-workspace-graphite.png')
 })
 
@@ -257,7 +249,7 @@ test('phone shell uses full-width content, bottom navigation, and a permission-a
   await expect(page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Admin' })).toHaveCount(0)
 })
 
-test('phone routes, composer, admin rows, and Zalo launcher remain inside the usable viewport', async ({ page }, testInfo) => {
+test('phone routes, composer, admin rows, and the Zalo panel entry remain inside the usable viewport', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('phone-'), 'Phone adaptation only')
   const routes = ['/inbox', '/channels/front-desk-home', '/tasks', '/documents', '/meetings', '/people', '/admin/people']
   for (const route of routes) {
@@ -275,13 +267,12 @@ test('phone routes, composer, admin rows, and Zalo launcher remain inside the us
   await page.goto('/admin/people')
   await expect(page.locator('td[data-label]').first()).toBeVisible()
 
-  const launcher = page.getByRole('link', {
-    name: 'Open personal Zalo messages in a separate window',
-  })
-  await expect(launcher).toHaveAttribute('href', 'https://chat.zalo.me/')
-  const [triggerBox, navBox] = await Promise.all([
-    page.locator('.zalo-widget-trigger').boundingBox(),
-    page.locator('.mobile-bottom-nav').boundingBox(),
-  ])
-  expect(triggerBox?.y && triggerBox.height ? triggerBox.y + triggerBox.height : 0).toBeLessThan(navBox?.y ?? Number.POSITIVE_INFINITY)
+  await page.goto('/inbox')
+  await page.getByRole('button', { name: 'More' }).click()
+  const moreSheet = page.getByRole('dialog', { name: 'More' })
+  await expect(moreSheet.getByRole('button', { name: 'Zalo' })).toBeVisible()
+  const zaloBox = await moreSheet.getByRole('button', { name: 'Zalo' }).boundingBox()
+  expect(zaloBox).toBeTruthy()
+  expect(zaloBox!.x).toBeGreaterThanOrEqual(0)
+  expect(zaloBox!.x + zaloBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
 })

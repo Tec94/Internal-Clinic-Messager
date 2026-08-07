@@ -81,18 +81,21 @@ content. This behavior intentionally warns rather than blocks.
 Staffing screens display imported snapshots with capture times. The product
 doesn't monitor live intake capacity, throughput, or diversion status.
 
-## Personal Zalo launcher
+## Zalo side panel
 
-The bottom-right Zalo control opens
-[Zalo Web Chat](https://chat.zalo.me/) in a separate Zalo-controlled window.
-Zalo requests sign-in on first use and can restore its own session on later
-visits. YKSG does not store a Zalo password, token, contact, or message.
+The sidebar `Zalo` control opens the employee's personal Zalo inbox in a
+managed side-panel popup that stays beside the workspace; clicking it again
+re-focuses the existing panel instead of navigating away. Zalo keeps its own
+sign-in in the browser profile, so employees stay signed in across days and
+YKSG logouts until they sign out of Zalo. YKSG does not store a Zalo
+password, token, contact, or message.
 
 Set `VITE_ENABLE_ZALO_LAUNCHER=true` to show the control on authenticated
 routes. The current Zalo APIs do not expose a personal inbox or existing chat
-history to another application. Read the
+history to another application, and Zalo withholds its login UI inside
+iframes, so embedding is not possible. Read the
 [Zalo integration decision](docs/ZALO_INTEGRATION.md) for the capability
-review, security boundary, and device acceptance checks.
+review, security boundary, and acceptance checks.
 
 ## Private development attachments
 

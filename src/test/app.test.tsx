@@ -54,14 +54,13 @@ describe('clinic messenger application', () => {
     expect(screen.getByText(/recent channels/i)).toBeInTheDocument()
   })
 
-  it('opens personal Zalo messages outside the clinic workspace', () => {
+  it('opens the managed Zalo side panel from the sidebar without leaving the workspace', () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false, focus: vi.fn() } as unknown as Window)
     renderApp('/inbox')
-    const launcher = screen.getByRole('link', {
-      name: 'Open personal Zalo messages in a separate window',
-    })
-    expect(launcher).toHaveAttribute('href', 'https://chat.zalo.me/')
-    expect(launcher).toHaveAttribute('target', '_blank')
-    expect(launcher).toHaveAttribute('rel', 'noopener noreferrer')
+    const navigation = screen.getByRole('navigation', { name: /primary/i })
+    fireEvent.click(within(navigation).getByRole('button', { name: /open personal zalo messages/i }))
+    expect(openSpy).toHaveBeenCalledWith('https://chat.zalo.me/', 'yksg-zalo-panel', expect.stringContaining('width=440'))
+    openSpy.mockRestore()
   })
 
   it('keeps regular employees out of owner settings', async () => {

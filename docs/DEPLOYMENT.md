@@ -130,11 +130,13 @@ security policy, deep links, `sw.js` cache policy, install prompt, update
 prompt, session expiry, and network-only Supabase requests on the deployed
 HTTPS URL.
 
-The Zalo launcher opens `https://chat.zalo.me/` in a separate window. Verify
-the first sign-in, later Zalo session restore, popup handling, and native
-browser launch. Do not add a Zalo password or user token to Vercel or
-Supabase. Use the [Zalo integration decision](ZALO_INTEGRATION.md) for the
-tested product boundary.
+The Zalo control opens the personal Zalo inbox in a managed side-panel popup.
+Verify the panel opens beside the workspace on the deployed HTTPS URL, that a
+second click re-focuses the existing panel, and that pop-up blocking surfaces
+the localized guidance. Do not add a Zalo password or user token to Vercel or
+Supabase. Use the
+[Zalo integration decision](ZALO_INTEGRATION.md) for the tested product
+boundary.
 
 Deploy `send-operational-notification` with JWT verification. Enable
 notifications only after its VAPID secrets are set and a real device proves

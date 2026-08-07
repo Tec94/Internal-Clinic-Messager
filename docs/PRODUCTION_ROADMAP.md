@@ -88,10 +88,10 @@ The completed repository and development-backend slice includes:
 - A fail-closed ClamAV promotion path and a container image that passed a local
   startup and health check. Production requires a deployed scanner and
   `ATTACHMENT_SCAN_MODE=clamav`; `dev_bypass` remains development-only.
-- Vercel SPA routing and security headers. The personal Zalo launcher opens
-  Zalo Web Chat in a separate Zalo-controlled window when
-  `VITE_ENABLE_ZALO_LAUNCHER=true`. It does not import chats or store Zalo
-  credentials.
+- Vercel SPA routing and security headers. The Zalo sidebar control opens the
+  personal Zalo inbox in a managed side-panel popup when
+  `VITE_ENABLE_ZALO_LAUNCHER=true`. It does not import personal chats or
+  store Zalo credentials.
 - Fifty-seven Vitest tests and 107 pgTAP assertions pass after the phase-out.
   Database lint and local security and performance advisors report no issues.
   The updated integrations restore a password session, prove Realtime, upload
@@ -429,8 +429,8 @@ This phase prepares one controlled department for a hosted PWA pilot.
   policy, security headers, and per-device Web Push subscription storage.
 - [x] Add an authenticated generic notification delivery worker that honors
   quiet hours and revokes dead subscriptions.
-- [x] Replace the Official Account widget with a personal Zalo Web Chat
-  launcher and document the no-import boundary.
+- [x] Replace the Official Account widget with the managed personal Zalo
+  side-panel popup and document the no-import boundary.
 - [ ] Configure VAPID secrets, monitoring, backups, recovery drills, and
   staging-to-production promotion.
 - [ ] Pilot with one department at one location before organization-wide

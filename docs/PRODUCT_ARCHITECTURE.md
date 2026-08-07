@@ -54,9 +54,9 @@ mistaken for durable or hosted behavior.
 - Authenticated Chat, Inbox, directory, Tasks, Meetings, announcements,
   settings, and supported administration use production repositories. Preview
   mode retains `ClinicProvider` data for interface tests.
-- The personal Zalo launcher opens Zalo Web Chat in a separate
-  Zalo-controlled window. It does not import a personal inbox or put Zalo data
-  inside the YKSG authorization and retention boundary.
+- The Zalo sidebar control opens the personal Zalo inbox in a managed
+  side-panel popup beside the workspace shell. It does not import a personal
+  inbox or put Zalo data inside the YKSG authorization and retention boundary.
 - A production malware scanner, push delivery secrets, selected SSO bridge,
   automated offboarding, monitoring, and recovery operations remain external
   release requirements. The

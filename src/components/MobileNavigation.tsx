@@ -5,6 +5,7 @@ import {
   FileText,
   LayoutDashboard,
   Menu as MoreIcon,
+  MessageCircle,
   MessageSquareText,
   Settings,
   ShieldCheck,
@@ -21,9 +22,13 @@ import { IconButton } from './ui'
 export function MobileNavigation({
   unreadTotal,
   chatPath,
+  zaloEnabled = false,
+  onOpenZalo,
 }: {
   unreadTotal: number
   chatPath: string
+  zaloEnabled?: boolean
+  onOpenZalo?: () => void
 }) {
   const { t } = useTranslation()
   const { hasPermission } = useClinic()
@@ -80,6 +85,11 @@ export function MobileNavigation({
             <nav className="mobile-more-links" aria-label={t('mobile.moreNavigation')}>
               <Dialog.Close asChild><NavLink to="/documents"><FileText size={20} />{t('nav.documents')}</NavLink></Dialog.Close>
               <Dialog.Close asChild><NavLink to="/people"><Users size={20} />{t('nav.people')}</NavLink></Dialog.Close>
+              {zaloEnabled && onOpenZalo ? (
+                <Dialog.Close asChild>
+                  <button type="button" onClick={onOpenZalo}><MessageCircle size={20} />{t('nav.zalo')}</button>
+                </Dialog.Close>
+              ) : null}
               {hasPermission('viewAdmin') ? <Dialog.Close asChild><NavLink to="/admin/overview"><ShieldCheck size={20} />{t('nav.admin')}</NavLink></Dialog.Close> : null}
               <button type="button" onClick={() => setHelpVisible((visible) => !visible)} aria-expanded={helpVisible}><CircleHelp size={20} />{t('nav.help')}</button>
               <Dialog.Close asChild><NavLink to="/settings"><Settings size={20} />{t('nav.settings')}</NavLink></Dialog.Close>
