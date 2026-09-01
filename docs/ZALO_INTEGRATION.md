@@ -49,7 +49,7 @@ persistence comes from the browser profile, not from the YKSG database.
 | Zalo Chat Widget (Social Plugins) | Embeds a conversation with one configured Official Account only — not colleague chats. Rejected for this requirement. |
 | Zalo Social API / SDKs | Profile, friends, and share actions. No personal chat reader. |
 | Zalo Official Account API | OA-to-user messaging and OA conversation reads. Not a personal inbox. |
-| Zalo Mini App | Runs YKSG inside the Zalo mobile app. Candidate follow-up; still no personal-inbox API. |
+| Zalo Mini App | Runs YKSG inside the Zalo mobile app. Candidate follow-up; still no personal-inbox API. See [Zalo Mini App research](ZALO_MINI_APP.md). |
 
 ## Security and privacy requirements
 
