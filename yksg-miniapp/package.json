@@ -1,0 +1,57 @@
+{
+  "name": "yksg-miniapp",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Offline YKSG employee companion for Zalo Mini App",
+  "repository": "",
+  "license": "UNLICENSED",
+  "browserslist": [
+    "Android >= 5",
+    "IOS >= 9.3",
+    "Edge >= 15",
+    "Safari >= 9.1",
+    "Chrome >= 49",
+    "Firefox >= 31",
+    "Samsung >= 5"
+  ],
+  "scripts": {
+    "login": "zmp login",
+    "start": "zmp start",
+    "type-check": "tsc --noEmit",
+    "build": "vite build",
+    "test": "cross-env NODE_OPTIONS=--no-experimental-webstorage vitest run",
+    "deploy": "zmp deploy"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "i18next": "25.2.1",
+    "jotai": "^2.12.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "15.5.3",
+    "react-router-dom": "6.30.6",
+    "zmp-sdk": "latest",
+    "zmp-ui": "latest"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "cross-env": "^7.0.3",
+    "jsdom": "26.1.0",
+    "postcss": "^8.4.38",
+    "postcss-cli": "^8.3.1",
+    "postcss-preset-env": "^6.7.0",
+    "sass": "^1.76.0",
+    "tailwindcss": "^3.4.3",
+    "typescript": "5.8.3",
+    "vite": "^5.2.13",
+    "vitest": "3.2.3",
+    "zmp-vite-plugin": "latest"
+  }
+}
