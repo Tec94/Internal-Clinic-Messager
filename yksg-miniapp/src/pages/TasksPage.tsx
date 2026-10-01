@@ -1,9 +1,10 @@
 import { FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { Page, useParams } from "zmp-ui";
 
 import { AppIcon } from "@/components/AppIcon";
+import { DirectionalLink } from "@/components/DirectionalLink";
+import { WorkRail } from "@/components/WorkRail";
 import {
   EmptyState,
   MetadataList,
@@ -18,12 +19,7 @@ import { getActiveMiniLocale } from "@/i18n";
 import { useMiniState } from "@/state/MiniStateContext";
 import { MiniStateAction, MiniTask, TaskAgendaSection } from "@/types";
 
-const taskSections: TaskAgendaSection[] = [
-  "needsAttention",
-  "today",
-  "upcoming",
-  "history",
-];
+const taskSections: TaskAgendaSection[] = ["today", "upcoming", "history"];
 
 const TaskRow = ({ task }: { task: MiniTask }) => {
   const { t } = useTranslation();
@@ -31,28 +27,25 @@ const TaskRow = ({ task }: { task: MiniTask }) => {
   const completed = task.checklist.filter((item) => item.completed).length;
 
   return (
-    <Link className="list-row" to={`/tasks/${task.id}`}>
+    <DirectionalLink className="list-row" to={`/tasks/${task.id}`}>
       <span className="list-row__content">
-        <span className="list-row__title-line">
-          <strong>{copyFor(task.title, locale)}</strong>
-          {task.urgent ? <UrgencyLabel /> : null}
-        </span>
+        <strong>{copyFor(task.title, locale)}</strong>
         <span className="list-row__description">{copyFor(task.summary, locale)}</span>
-        <span className="list-row__meta">
-          {copyFor(task.dueLabel, locale)}
-          {task.checklist.length
-            ? ` · ${t("tasks.progress", {
-                completed,
-                total: task.checklist.length,
-              })}`
-            : ""}
+        <span className="list-row__details">
+          {task.urgent ? <UrgencyLabel /> : null}
+          <TaskStatusLabel status={task.status} />
+          <span>{copyFor(task.dueLabel, locale)}</span>
         </span>
+        {task.checklist.length ? (
+          <span className="list-row__meta">
+            {t("tasks.progress", { completed, total: task.checklist.length })}
+          </span>
+        ) : null}
       </span>
       <span className="list-row__end">
-        <TaskStatusLabel status={task.status} />
         <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
       </span>
-    </Link>
+    </DirectionalLink>
   );
 };
 
@@ -70,19 +63,29 @@ const TaskList = () => {
       <div className="page-body">
         {tasks.length ? (
           taskSections.map((section) => {
-            const sectionTasks = tasks.filter((task) => task.agenda === section);
+            const sectionTasks = tasks.filter((task) =>
+              section === "today"
+                ? task.agenda === "needsAttention" || task.agenda === "today"
+                : task.agenda === section,
+            );
             if (!sectionTasks.length) return null;
+            if (section === "history") {
+              return (
+                <details className="content-section history-disclosure" key={section}>
+                  <summary>{t("tasks.sections.history")} <span className="mono">{sectionTasks.length}</span></summary>
+                  <ul className="row-list">
+                    {sectionTasks.map((task) => <li key={task.id}><TaskRow task={task} /></li>)}
+                  </ul>
+                </details>
+              );
+            }
             return (
               <section className="content-section" key={section}>
                 <SectionHeading
                   title={t(`tasks.sections.${section}`)}
                   meta={String(sectionTasks.length)}
                 />
-                <ul className="row-list">
-                  {sectionTasks.map((task) => (
-                    <li key={task.id}><TaskRow task={task} /></li>
-                  ))}
-                </ul>
+                <WorkRail entries={sectionTasks.map((item) => ({ kind: "task", item }))} />
               </section>
             );
           })
@@ -97,7 +100,7 @@ const TaskList = () => {
 const TaskDetail = ({ taskId }: { taskId: string }) => {
   const { t } = useTranslation();
   const locale = getActiveMiniLocale();
-  const { snapshot, tasks, dispatch } = useMiniState();
+  const { snapshot, tasks, dispatch, actWithUndo } = useMiniState();
   const task = tasks.find((item) => item.id === taskId);
   const [formMode, setFormMode] = useState<"decline" | "blocker" | null>(null);
   const [reason, setReason] = useState("");
@@ -120,7 +123,20 @@ const TaskDetail = ({ taskId }: { taskId: string }) => {
   const checklistEditable = ["accepted", "inProgress", "blocked"].includes(task.status);
 
   const perform = (action: MiniStateAction) => {
-    dispatch(action);
+    if (action.type === "task/accept" || action.type === "task/decline") {
+      actWithUndo(action, {
+        type: "task/restore",
+        taskId: task.id,
+        task: {
+          status: task.status,
+          checklist: Object.fromEntries(task.checklist.map((item) => [item.id, item.completed])),
+          declineReason: task.declineReason,
+          blockerReason: task.blockerReason,
+        },
+      }, t("tasks.updated"));
+    } else {
+      dispatch(action);
+    }
     setAnnouncement(t("tasks.updated"));
     setFormMode(null);
     setReason("");
@@ -195,9 +211,9 @@ const TaskDetail = ({ taskId }: { taskId: string }) => {
                     {
                       label: t("tasks.sourceChannel"),
                       value: (
-                        <Link to={`/chat/${sourceChannel.id}`}>
+                        <DirectionalLink to={`/chat/${sourceChannel.id}`}>
                           {copyFor(sourceChannel.displayName, locale)}
-                        </Link>
+                        </DirectionalLink>
                       ),
                     },
                   ]

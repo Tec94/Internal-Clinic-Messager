@@ -28,6 +28,12 @@
   --urgent-surface: oklch(94% 0.052 43);
   --danger: oklch(42% 0.13 25);
   --danger-surface: oklch(93% 0.035 25);
+  --status-progress: oklch(40% 0.11 245);
+  --status-progress-surface: oklch(93% 0.03 245);
+  --status-success: oklch(38% 0.085 155);
+  --status-success-surface: oklch(93% 0.038 155);
+  --status-waiting: oklch(42% 0.09 75);
+  --status-waiting-surface: oklch(94% 0.055 85);
   --nav-height: 68px;
 }
 
@@ -133,7 +139,7 @@ textarea:focus-visible {
   min-height: 100dvh;
   padding: 0 0 calc(var(--space-xl) + var(--nav-height) + env(safe-area-inset-bottom));
   overflow-x: hidden;
-  background: var(--canvas);
+  background: var(--surface-lowest);
   color: var(--text);
 }
 
@@ -142,19 +148,19 @@ textarea:focus-visible {
   top: 0;
   z-index: 20;
   border-bottom: 1px solid var(--outline-soft);
-  background: color-mix(in oklch, var(--surface-lowest) 96%, transparent);
+  background: color-mix(in oklch, var(--canvas) 96%, transparent);
 }
 
 .page-header__inner {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-md);
   width: 100%;
   max-width: 720px;
   min-height: 84px;
   margin: 0 auto;
-  padding: calc(var(--space-sm) + env(safe-area-inset-top)) var(--space-md) var(--space-sm);
+  padding: calc(var(--space-xs) + env(safe-area-inset-top)) var(--space-md) var(--space-sm);
 }
 
 .page-header--detail .page-header__inner {
@@ -174,18 +180,6 @@ textarea:focus-visible {
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1.2;
-}
-
-.brand-mark__product {
-  max-width: 70px;
-  margin-top: 2px;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.6875rem;
-  font-weight: 650;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .page-header__copy {
@@ -222,8 +216,17 @@ textarea:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.page-header__trailing {
-  min-width: 0;
+.inbox-header {
+  position: relative;
+}
+
+.inbox-header .page-header__inner {
+  grid-template-columns: minmax(0, 1fr);
+  padding-bottom: var(--space-lg);
+}
+
+.inbox-header .page-header__copy {
+  grid-column: 1;
 }
 
 .icon-button {
@@ -241,35 +244,6 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
-.locale-switcher {
-  display: inline-grid;
-  grid-template-columns: repeat(2, 44px);
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--outline);
-  border-radius: 6px;
-  background: var(--surface-low);
-}
-
-.locale-switcher__option {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 780;
-  letter-spacing: 0.04em;
-}
-
-.locale-switcher__option[aria-pressed="true"] {
-  background: var(--primary);
-  color: var(--on-primary);
-}
-
 .page-body {
   width: 100%;
   max-width: 720px;
@@ -277,42 +251,12 @@ textarea:focus-visible {
   padding: var(--space-lg) var(--space-md) 0;
 }
 
-.scope-summary {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-sm);
-  padding: var(--space-md) 0;
-  border-top: 1px solid var(--outline-soft);
-  border-bottom: 1px solid var(--outline-soft);
-}
-
-.scope-summary__marker {
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: var(--primary);
-}
-
-.scope-summary strong {
-  font-size: 0.9375rem;
-  line-height: 1.4;
-}
-
-.scope-summary p {
-  max-width: 54ch;
-  margin: var(--space-2xs) 0 0;
-  color: var(--text-muted);
-  font-size: 0.9375rem;
-  line-height: 1.45;
-}
-
 .content-section {
   margin-top: var(--space-xl);
 }
 
-.content-section--first {
+.content-section--first,
+.inbox-body > .content-section:first-child {
   margin-top: 0;
 }
 
@@ -426,6 +370,17 @@ textarea:focus-visible {
   line-height: 1.35;
 }
 
+.list-row__details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
 .list-row__end {
   display: flex;
   flex: 0 0 auto;
@@ -467,30 +422,52 @@ textarea:focus-visible {
   color: var(--text);
 }
 
-.status-label--pendingAcceptance,
-.status-label--blocked,
-.status-label--meeting-none {
-  border-color: var(--primary);
-  background: var(--primary-fixed);
-  color: var(--primary-strong);
-}
-
-.status-label--done,
-.status-label--meeting-accepted {
-  background: var(--surface-lowest);
-}
-
-.status-label--declined,
-.status-label--canceled,
-.status-label--meeting-declined {
-  color: var(--text-muted);
-}
-
 .presence {
   min-height: 22px;
   padding: 1px 6px;
   border: 1px solid var(--outline-soft);
   background: var(--surface-lowest);
+  color: var(--text-muted);
+}
+
+.status-label,
+.presence {
+  border-color: currentColor;
+}
+
+.status-label--accepted,
+.status-label--meeting-accepted {
+  background: var(--primary-fixed);
+  color: var(--primary-strong);
+}
+
+.status-label--inProgress {
+  background: var(--status-progress-surface);
+  color: var(--status-progress);
+}
+
+.status-label--done,
+.presence--active {
+  background: var(--status-success-surface);
+  color: var(--status-success);
+}
+
+.status-label--pendingAcceptance,
+.status-label--meeting-none,
+.presence--away {
+  background: var(--status-waiting-surface);
+  color: var(--status-waiting);
+}
+
+.status-label--blocked,
+.status-label--declined,
+.status-label--meeting-declined {
+  background: var(--danger-surface);
+  color: var(--danger);
+}
+
+.status-label--canceled {
+  background: var(--surface-low);
   color: var(--text-muted);
 }
 
@@ -500,12 +477,8 @@ textarea:focus-visible {
   height: 6px;
   margin-right: 5px;
   border-radius: 50%;
-  background: var(--primary);
+  background: currentColor;
   content: "";
-}
-
-.presence--away::before {
-  background: var(--outline);
 }
 
 .unread-badge {
@@ -548,38 +521,6 @@ textarea:focus-visible {
   color: var(--text-muted);
   font-size: 0.9375rem;
   line-height: 1.45;
-}
-
-.message-preview {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--space-sm);
-  min-height: 72px;
-  padding: var(--space-md) 0;
-  border-top: 1px solid var(--outline-soft);
-  border-bottom: 1px solid var(--outline-soft);
-  color: var(--text);
-  text-decoration: none;
-}
-
-.message-preview__content {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: 0.9375rem;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.message-preview__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-xs);
-  color: var(--text);
 }
 
 .avatar {
@@ -1010,7 +951,7 @@ textarea:focus-visible {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   min-height: calc(var(--nav-height) + env(safe-area-inset-bottom));
-  padding: 5px max(var(--space-2xs), env(safe-area-inset-right)) env(safe-area-inset-bottom)
+  padding: 0 max(var(--space-2xs), env(safe-area-inset-right)) env(safe-area-inset-bottom)
     max(var(--space-2xs), env(safe-area-inset-left));
   border-top: 1px solid var(--outline-soft);
   background: var(--surface-lowest);
@@ -1039,6 +980,13 @@ textarea:focus-visible {
 .bottom-nav__item.is-active {
   color: var(--primary-strong);
   font-weight: 780;
+}
+
+.bottom-nav__item:active,
+.icon-button:active,
+.more-links > a:active,
+.more-links > button:active {
+  background: var(--primary-fixed);
 }
 
 .bottom-nav__item.is-active::before {
@@ -1171,11 +1119,6 @@ textarea:focus-visible {
     padding-left: var(--space-sm);
   }
 
-  .page-header__trailing {
-    grid-column: 2;
-    justify-self: start;
-  }
-
   .page-header--detail .page-header__inner {
     grid-template-columns: 44px minmax(0, 1fr);
   }
@@ -1221,7 +1164,6 @@ textarea:focus-visible {
 }
 
 @media (forced-colors: active) {
-  .locale-switcher__option[aria-pressed="true"],
   .unread-badge,
   .urgency-label,
   .status-label,
@@ -1232,7 +1174,6 @@ textarea:focus-visible {
     border: 1px solid ButtonText;
   }
 
-  .scope-summary__marker,
   .presence::before,
   .bottom-nav__item.is-active::before {
     background: CanvasText;

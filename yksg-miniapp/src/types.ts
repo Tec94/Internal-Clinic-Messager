@@ -133,8 +133,9 @@ export type MiniStateAction =
   | { type: "task/report-blocker"; taskId: string; reason: string }
   | { type: "task/clear-blocker"; taskId: string }
   | { type: "task/reopen"; taskId: string }
+  | { type: "task/restore"; taskId: string; task: TaskMutableState }
   | {
       type: "meeting/respond";
       meetingId: string;
-      response: Exclude<MeetingResponse, "none">;
+      response: MeetingResponse;
     };

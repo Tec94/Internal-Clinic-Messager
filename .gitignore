@@ -18,3 +18,5 @@ Thumbs.db
 .env.*.local
 .employee-accounts.local.json
 .test-accounts.local.json
+
+.playwright-cli/

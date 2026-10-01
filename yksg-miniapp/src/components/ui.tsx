@@ -1,58 +1,16 @@
 import { ChangeEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { useNavigate } from "zmp-ui";
 
 import { AppIcon } from "@/components/AppIcon";
-import { getActiveMiniLocale, setMiniLocale } from "@/i18n";
-import {
-  MeetingResponse,
-  MiniLocale,
-  TaskStatus,
-} from "@/types";
-
-export const LocaleSwitcher = () => {
-  const { t } = useTranslation();
-  const locale = getActiveMiniLocale();
-
-  const changeLocale = (nextLocale: MiniLocale) => {
-    if (nextLocale !== locale) void setMiniLocale(nextLocale);
-  };
-
-  return (
-    <div
-      className="locale-switcher"
-      role="group"
-      aria-label={t("locale.groupLabel")}
-    >
-      <button
-        className="locale-switcher__option"
-        type="button"
-        aria-label={t("locale.switchToVietnamese")}
-        aria-pressed={locale === "vi-VN"}
-        onClick={() => changeLocale("vi-VN")}
-      >
-        VI
-      </button>
-      <button
-        className="locale-switcher__option"
-        type="button"
-        aria-label={t("locale.switchToEnglish")}
-        aria-pressed={locale === "en-US"}
-        onClick={() => changeLocale("en-US")}
-      >
-        EN
-      </button>
-    </div>
-  );
-};
+import { DirectionalLink } from "@/components/DirectionalLink";
+import { MeetingResponse, TaskStatus } from "@/types";
 
 interface PageHeaderProps {
   eyebrow: string;
   title: string;
   description?: string;
   back?: boolean;
-  trailing?: ReactNode;
 }
 
 export const PageHeader = ({
@@ -60,7 +18,6 @@ export const PageHeader = ({
   title,
   description,
   back = false,
-  trailing,
 }: PageHeaderProps) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -82,7 +39,6 @@ export const PageHeader = ({
         ) : (
           <div className="brand-mark" aria-label={t("brand.label")}>
             <span className="brand-mark__name">YKSG</span>
-            <span className="brand-mark__product">{t("brand.product")}</span>
           </div>
         )}
 
@@ -91,7 +47,6 @@ export const PageHeader = ({
           <h1>{title}</h1>
           {description ? <p>{description}</p> : null}
         </div>
-        {trailing ? <div className="page-header__trailing">{trailing}</div> : null}
       </div>
     </header>
   );
@@ -109,12 +64,12 @@ export const SectionHeading = ({
   <div className="section-heading">
     <h2>{title}</h2>
     {action ? (
-      <Link className="section-heading__action" to={action.to}>
+      <DirectionalLink className="section-heading__action" to={action.to}>
         {action.label}
         <span aria-hidden="true">
           <AppIcon name="arrow-right" size={16} />
         </span>
-      </Link>
+      </DirectionalLink>
     ) : meta ? (
       <span className="section-heading__meta">{meta}</span>
     ) : null}

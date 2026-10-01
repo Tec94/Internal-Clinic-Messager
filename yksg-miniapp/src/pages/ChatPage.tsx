@@ -1,8 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { Page, useParams } from "zmp-ui";
 
-import { AppIcon } from "@/components/AppIcon";
+import { DirectionalLink } from "@/components/DirectionalLink";
 import {
   EmptyState,
   NotFound,
@@ -14,6 +13,8 @@ import {
 import { getActiveMiniLocale } from "@/i18n";
 import { copyFor } from "@/localization";
 import { useMiniState } from "@/state/MiniStateContext";
+
+const timeOf = (label: string): string => label.match(/\d{1,2}:\d{2}/)?.[0] ?? "";
 
 const ChannelList = () => {
   const { t } = useTranslation();
@@ -34,33 +35,25 @@ const ChannelList = () => {
             meta={t("chat.channelCount", { count: snapshot.channels.length })}
           />
           {snapshot.channels.length ? (
-            <ul className="row-list">
-              {snapshot.channels.map((channel) => (
-                <li key={channel.id}>
-                  <Link className="list-row" to={`/chat/${channel.id}`}>
-                    <span className="list-row__content">
-                      <span className="list-row__title-line">
+            <ul className="channel-list">
+              {snapshot.channels.map((channel) => {
+                const message = channel.messages.find((item) => item.unread) ?? channel.messages[0];
+                return (
+                  <li key={channel.id}>
+                    <DirectionalLink className={`channel-row ${channel.unreadCount ? "is-unread" : ""}`} to={`/chat/${channel.id}`}>
+                      <span className="channel-row__avatar" aria-hidden="true">{copyFor(channel.displayName, locale).slice(0, 2).toLocaleUpperCase(locale)}</span>
+                      <span className="channel-row__copy">
                         <strong>{copyFor(channel.displayName, locale)}</strong>
-                        {channel.isUrgent ? <UrgencyLabel /> : null}
+                        {message ? <span>{message.senderName.split(" ").at(-1)}: {copyFor(message.body, locale)}</span> : <span>{copyFor(channel.purpose, locale)}</span>}
                       </span>
-                      <span className="list-row__description">
-                        {copyFor(channel.purpose, locale)}
+                      <span className="channel-row__end">
+                        {message ? <time>{timeOf(copyFor(message.timeLabel, locale))}</time> : null}
+                        {channel.unreadCount ? <UnreadBadge count={channel.unreadCount} /> : null}
                       </span>
-                      <span className="list-row__meta">
-                        {t("common.members", { count: channel.memberCount })}
-                      </span>
-                    </span>
-                    <span className="list-row__end">
-                      {channel.unreadCount ? (
-                        <UnreadBadge count={channel.unreadCount} />
-                      ) : (
-                        <span className="quiet-label">{t("common.caughtUp")}</span>
-                      )}
-                      <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
+                    </DirectionalLink>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <EmptyState title={t("chat.noChannels")} />

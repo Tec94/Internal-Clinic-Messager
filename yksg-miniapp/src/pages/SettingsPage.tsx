@@ -44,6 +44,7 @@ export const SettingsPage = () => {
           <div className="language-options" role="group" aria-label={t("locale.groupLabel")}>
             <button
               type="button"
+              aria-label={t("locale.switchToVietnamese")}
               aria-pressed={locale === "vi-VN"}
               onClick={() => changeLocale("vi-VN")}
             >
@@ -55,6 +56,7 @@ export const SettingsPage = () => {
             </button>
             <button
               type="button"
+              aria-label={t("locale.switchToEnglish")}
               aria-pressed={locale === "en-US"}
               onClick={() => changeLocale("en-US")}
             >

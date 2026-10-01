@@ -1,166 +1,72 @@
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { Page } from "zmp-ui";
 
-import { AppIcon } from "@/components/AppIcon";
-import {
-  LocaleSwitcher,
-  MeetingResponseLabel,
-  PageHeader,
-  SectionHeading,
-  TaskStatusLabel,
-  UnreadBadge,
-  UrgencyLabel,
-} from "@/components/ui";
+import { DirectionalLink } from "@/components/DirectionalLink";
+import { EmptyState, SectionHeading, UnreadBadge } from "@/components/ui";
+import { WorkRail } from "@/components/WorkRail";
 import { getActiveMiniLocale } from "@/i18n";
 import { copyFor } from "@/localization";
 import { useMiniState } from "@/state/MiniStateContext";
+import { MiniChannel, MiniMeeting, MiniTask } from "@/types";
+
+const timeOf = (label: string): string => label.match(/\d{1,2}:\d{2}/)?.[0] ?? "";
 
 export const InboxPage = () => {
   const { t } = useTranslation();
   const locale = getActiveMiniLocale();
   const { snapshot, tasks, meetings } = useMiniState();
-  const hasUnread = snapshot.channels.some((channel) => channel.unreadCount > 0);
-  const attentionTasks = tasks.filter((task) => task.agenda === "needsAttention");
-  const invitations = meetings.filter((meeting) => meeting.section === "invitations");
-  const latestUnread = snapshot.channels.reduce<
-    { channelId: string; message: (typeof snapshot.channels)[number]["messages"][number] }
-      | undefined
-  >((found, channel) => {
-    if (found) return found;
-    const message = channel.messages.find((item) => item.unread);
-    return message ? { channelId: channel.id, message } : undefined;
-  }, undefined);
+  const unreadChannels = snapshot.channels.filter((channel) => channel.unreadCount > 0);
+  const todayTasks = tasks.filter((task) => task.agenda === "needsAttention" || task.agenda === "today");
+  const todayMeetings = meetings.filter((meeting) => meeting.section === "invitations");
+  const entries: Array<{ kind: "task"; item: MiniTask } | { kind: "meeting"; item: MiniMeeting }> = [
+    ...todayMeetings.map((item) => ({ kind: "meeting" as const, item })),
+    ...todayTasks.map((item) => ({ kind: "task" as const, item })),
+  ].sort((a, b) => timeOf(copyFor(a.kind === "task" ? a.item.dueLabel : a.item.startLabel, locale)).localeCompare(timeOf(copyFor(b.kind === "task" ? b.item.dueLabel : b.item.startLabel, locale))));
+  const waitingCount = todayTasks.filter((item) => item.status === "pendingAcceptance").length + todayMeetings.filter((item) => item.response === "none").length;
 
   return (
     <Page className="mini-page">
-      <PageHeader
-        eyebrow={t("inbox.eyebrow")}
-        title={t("inbox.greeting", { name: snapshot.userDisplayName })}
-        trailing={<LocaleSwitcher />}
-      />
-
-      <div className="page-body inbox-body">
-        <section className="scope-summary" aria-label={copyFor(snapshot.scope, locale)}>
-          <span className="scope-summary__marker" aria-hidden="true" />
-          <div>
-            <strong>{copyFor(snapshot.scope, locale)}</strong>
-            <p>{hasUnread ? t("inbox.summaryDefault") : t("inbox.summaryEmpty")}</p>
+      <header className="page-header inbox-header">
+        <div className="page-header__inner">
+          <div className="page-header__copy">
+            <h1>{t("inbox.greeting", { name: snapshot.userDisplayName.split(" ").at(-1) })}</h1>
+            <p>{copyFor(snapshot.scope, locale)}</p>
           </div>
-        </section>
-
-        <section className="content-section">
-          <SectionHeading
-            title={t("inbox.channels")}
-            action={{ label: t("inbox.viewAll"), to: "/chat" }}
-          />
-          <ul className="row-list">
-            {snapshot.channels.map((channel) => (
-              <li key={channel.id}>
-                <Link className="list-row" to={`/chat/${channel.id}`}>
-                  <span className="list-row__content">
-                    <span className="list-row__title-line">
-                      <strong>{copyFor(channel.displayName, locale)}</strong>
-                      {channel.isUrgent ? <UrgencyLabel /> : null}
-                    </span>
-                    <span className="list-row__description">
-                      {copyFor(channel.purpose, locale)}
-                    </span>
-                  </span>
-                  <span className="list-row__end">
-                    {channel.unreadCount > 0 ? (
-                      <UnreadBadge count={channel.unreadCount} />
-                    ) : (
-                      <span className="quiet-label">{t("common.caughtUp")}</span>
-                    )}
-                    <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {latestUnread ? (
+        </div>
+      </header>
+      <div className="page-body inbox-body">
+        {entries.length ? (
           <section className="content-section">
-            <SectionHeading title={t("inbox.latestMessage")} />
-            <Link
-              className="message-preview"
-              to={`/chat/${latestUnread.channelId}`}
-            >
-              <span className="avatar" aria-hidden="true">
-                {latestUnread.message.senderInitials}
-              </span>
-              <span className="message-preview__content">
-                <span className="message-preview__title">
-                  <strong>{latestUnread.message.senderName}</strong>
-                  <span className="unread-state">{t("common.unread")}</span>
-                </span>
-                <span>{copyFor(latestUnread.message.body, locale)}</span>
-              </span>
-              <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-            </Link>
+            <SectionHeading title={t("tasks.sections.today")} meta={waitingCount ? t("inbox.waitingCount", { count: waitingCount }) : undefined} />
+            <WorkRail entries={entries} />
           </section>
         ) : null}
-
-        <section className="content-section">
-          <SectionHeading
-            title={t("inbox.tasks")}
-            action={{ label: t("inbox.viewAll"), to: "/tasks" }}
-          />
-          {attentionTasks.length ? (
-            <ul className="row-list">
-              {attentionTasks.map((task) => (
-                <li key={task.id}>
-                  <Link className="list-row" to={`/tasks/${task.id}`}>
-                    <span className="list-row__content">
-                      <span className="list-row__title-line">
-                        <strong>{copyFor(task.title, locale)}</strong>
-                        {task.urgent ? <UrgencyLabel /> : null}
+        {unreadChannels.length ? (
+          <section className="content-section">
+            <SectionHeading title={t("common.unread")} action={{ label: t("inbox.viewAll"), to: "/chat" }} />
+            <ul className="channel-list">
+              {unreadChannels.map((channel: MiniChannel) => {
+                const message = channel.messages.find((item) => item.unread) ?? channel.messages[0];
+                return (
+                  <li key={channel.id}>
+                    <DirectionalLink className="channel-row" to={`/chat/${channel.id}`}>
+                      <span className="channel-row__avatar" aria-hidden="true">{copyFor(channel.displayName, locale).slice(0, 2).toLocaleUpperCase(locale)}</span>
+                      <span className="channel-row__copy">
+                        <strong>{copyFor(channel.displayName, locale)}</strong>
+                        {message ? <span>{message.senderName.split(" ").at(-1)}: {copyFor(message.body, locale)}</span> : null}
                       </span>
-                      <span className="list-row__description">{copyFor(task.dueLabel, locale)}</span>
-                    </span>
-                    <span className="list-row__end">
-                      <TaskStatusLabel status={task.status} />
-                      <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="inline-empty">{t("inbox.noAttentionTasks")}</p>
-          )}
-        </section>
-
-        <section className="content-section">
-          <SectionHeading
-            title={t("inbox.meetings")}
-            action={{ label: t("inbox.viewAll"), to: "/meetings" }}
-          />
-          {invitations.length ? (
-            <ul className="row-list">
-              {invitations.map((meeting) => (
-                <li key={meeting.id}>
-                  <Link className="list-row" to={`/meetings/${meeting.id}`}>
-                    <span className="list-row__content">
-                      <strong>{copyFor(meeting.title, locale)}</strong>
-                      <span className="list-row__description">
-                        {copyFor(meeting.startLabel, locale)}
+                      <span className="channel-row__end">
+                        {message ? <time>{timeOf(copyFor(message.timeLabel, locale))}</time> : null}
+                        <UnreadBadge count={channel.unreadCount} />
                       </span>
-                    </span>
-                    <span className="list-row__end">
-                      <MeetingResponseLabel response={meeting.response} />
-                      <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
+                    </DirectionalLink>
+                  </li>
+                );
+              })}
             </ul>
-          ) : (
-            <p className="inline-empty" id="inbox-meetings-title">{t("inbox.noInvitations")}</p>
-          )}
-        </section>
+          </section>
+        ) : null}
+        {!entries.length && !unreadChannels.length ? <EmptyState title={t("inbox.summaryEmpty")} /> : null}
       </div>
     </Page>
   );

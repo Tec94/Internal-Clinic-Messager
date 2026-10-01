@@ -145,6 +145,13 @@ export const miniStateReducer = (
       return updateTask(state, action.taskId, (task) =>
         task.status === "done" ? { ...task, status: "inProgress" } : task,
       );
+    case "task/restore":
+      return updateTask(state, action.taskId, (task) => ({
+        ...task,
+        status: action.task.status,
+        declineReason: action.task.declineReason,
+        blockerReason: action.task.blockerReason,
+      }));
     case "meeting/respond":
       if (!(action.meetingId in state.meetingResponses)) return state;
       return {
@@ -199,14 +206,6 @@ export const resolveMeeting = (
   return {
     ...meeting,
     response,
-    section:
-      response === "none"
-        ? "invitations"
-        : response === "declined"
-          ? "past"
-          : meeting.section === "past"
-            ? "past"
-            : "upcoming",
   };
 };
 

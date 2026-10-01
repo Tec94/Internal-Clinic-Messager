@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { Page, useParams } from "zmp-ui";
 
 import { AppIcon } from "@/components/AppIcon";
+import { DirectionalLink } from "@/components/DirectionalLink";
 import {
   EmptyState,
   MetadataList,
@@ -53,7 +53,7 @@ const DocumentList = () => {
             <ul className="row-list">
               {filteredDocuments.map((document) => (
                 <li key={document.id}>
-                  <Link className="list-row" to={`/documents/${document.id}`}>
+                  <DirectionalLink className="list-row" to={`/documents/${document.id}`}>
                     <span className="file-glyph" aria-hidden="true">
                       <AppIcon name="file" size={21} />
                     </span>
@@ -69,7 +69,7 @@ const DocumentList = () => {
                     <span className="list-row__end" aria-hidden="true">
                       <AppIcon name="arrow-right" size={17} />
                     </span>
-                  </Link>
+                  </DirectionalLink>
                 </li>
               ))}
             </ul>
@@ -136,9 +136,9 @@ const DocumentDetail = ({ documentId }: { documentId: string }) => {
                     {
                       label: t("documents.linkedTask"),
                       value: (
-                        <Link to={`/tasks/${linkedTask.id}`}>
+                        <DirectionalLink to={`/tasks/${linkedTask.id}`}>
                           {copyFor(linkedTask.title, locale)}
-                        </Link>
+                        </DirectionalLink>
                       ),
                     },
                   ]
@@ -148,9 +148,9 @@ const DocumentDetail = ({ documentId }: { documentId: string }) => {
                     {
                       label: t("documents.sourceChannel"),
                       value: (
-                        <Link to={`/chat/${sourceChannel.id}`}>
+                        <DirectionalLink to={`/chat/${sourceChannel.id}`}>
                           {copyFor(sourceChannel.displayName, locale)}
-                        </Link>
+                        </DirectionalLink>
                       ),
                     },
                   ]

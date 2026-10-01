@@ -6,6 +6,8 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
+  useState,
 } from "react";
 
 import {
@@ -35,6 +37,8 @@ interface MiniStateContextValue {
   tasks: MiniTask[];
   meetings: MiniMeeting[];
   dispatch: (action: MiniStateAction) => void;
+  actWithUndo: (action: MiniStateAction, undo: MiniStateAction, message: string) => void;
+  toast: { message: string; undo: () => void } | null;
   reset: () => void;
 }
 
@@ -48,6 +52,30 @@ export const MiniStateProvider = ({ children }: PropsWithChildren) => {
     undefined,
     () => readMiniState(scenario, snapshot),
   );
+  const [toast, setToast] = useState<MiniStateContextValue["toast"]>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const actWithUndo = useCallback((
+    action: MiniStateAction,
+    undoAction: MiniStateAction,
+    message: string,
+  ) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    dispatch(action);
+    setToast({
+      message,
+      undo: () => {
+        dispatch(undoAction);
+        setToast(null);
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+      },
+    });
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
+  }, []);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
 
   useEffect(() => {
     writeMiniState(scenario, state);
@@ -75,8 +103,8 @@ export const MiniStateProvider = ({ children }: PropsWithChildren) => {
   }, [scenario, snapshot]);
 
   const value = useMemo(
-    () => ({ scenario, snapshot, tasks, meetings, dispatch, reset }),
-    [meetings, reset, scenario, snapshot, tasks],
+    () => ({ scenario, snapshot, tasks, meetings, dispatch, actWithUndo, toast, reset }),
+    [actWithUndo, meetings, reset, scenario, snapshot, tasks, toast],
   );
 
   return (

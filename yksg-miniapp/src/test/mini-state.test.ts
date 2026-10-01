@@ -6,6 +6,7 @@ import {
   getMiniStateStorageKey,
   miniStateReducer,
   readMiniState,
+  resolveMeeting,
   writeMiniState,
 } from "@/state/mini-state";
 
@@ -86,6 +87,9 @@ describe("fixture-local state", () => {
       response: "accepted",
     });
     expect(updated.meetingResponses["handoff-meeting"]).toBe("accepted");
+    const declined = resolveMeeting(snapshot.meetings[0], "declined");
+    expect(declined.section).toBe("invitations");
+    expect(declined.response).toBe("declined");
   });
 
   it("resets only to the active fixture's deterministic initial state", () => {

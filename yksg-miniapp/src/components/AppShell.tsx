@@ -8,9 +8,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppIcon, AppIconName } from "@/components/AppIcon";
+import { DirectionalLink, DirectionalNavLink } from "@/components/DirectionalLink";
+import { getActiveMiniLocale } from "@/i18n";
+import { copyFor } from "@/localization";
 import { useMiniState } from "@/state/MiniStateContext";
 
 const navItems = [
@@ -34,7 +37,6 @@ const BottomSheet = ({
 }) => {
   const { t } = useTranslation();
   const closeRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
@@ -59,24 +61,6 @@ const BottomSheet = ({
       onClose();
       return;
     }
-    if (event.key !== "Tab") return;
-
-    const focusable = Array.from(
-      dialogRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), [tabindex="0"]',
-      ) ?? [],
-    );
-    if (!focusable.length) return;
-
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
   };
 
   const closeAfterNavigation = () => onClose();
@@ -90,10 +74,8 @@ const BottomSheet = ({
         onClick={onClose}
       />
       <div
-        ref={dialogRef}
         className="more-sheet"
         role="dialog"
-        aria-modal="true"
         aria-labelledby="more-sheet-title"
         aria-describedby="more-sheet-description"
         onKeyDown={handleKeyDown}
@@ -118,16 +100,16 @@ const BottomSheet = ({
         </header>
 
         <nav className="more-links" aria-label={t("more.navigation")}>
-          <Link to="/documents" onClick={closeAfterNavigation}>
+          <DirectionalLink to="/documents" onClick={closeAfterNavigation}>
             <span aria-hidden="true"><AppIcon name="file" size={21} /></span>
             <span>{t("nav.documents")}</span>
             <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-          </Link>
-          <Link to="/people" onClick={closeAfterNavigation}>
+          </DirectionalLink>
+          <DirectionalLink to="/people" onClick={closeAfterNavigation}>
             <span aria-hidden="true"><AppIcon name="user" size={21} /></span>
             <span>{t("nav.people")}</span>
             <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-          </Link>
+          </DirectionalLink>
           <button
             type="button"
             aria-expanded={helpOpen}
@@ -146,11 +128,11 @@ const BottomSheet = ({
               <p>{t("help.privacy")}</p>
             </div>
           ) : null}
-          <Link to="/settings" onClick={closeAfterNavigation}>
+          <DirectionalLink to="/settings" onClick={closeAfterNavigation}>
             <span aria-hidden="true"><AppIcon name="settings" size={21} /></span>
             <span>{t("nav.settings")}</span>
             <span aria-hidden="true"><AppIcon name="arrow-right" size={17} /></span>
-          </Link>
+          </DirectionalLink>
         </nav>
       </div>
     </div>,
@@ -160,10 +142,13 @@ const BottomSheet = ({
 
 export const AppShell = ({ children }: PropsWithChildren) => {
   const { t } = useTranslation();
-  const { snapshot } = useMiniState();
+  const { snapshot, tasks, meetings, toast } = useMiniState();
   const location = useLocation();
+  const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const unreadTotal = snapshot.channels.reduce(
     (total, channel) => total + channel.unreadCount,
     0,
@@ -173,17 +158,67 @@ export const AppShell = ({ children }: PropsWithChildren) => {
   );
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "auto" });
+    mainRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    setMoreOpen(false);
   }, [location.pathname]);
 
+  const locale = getActiveMiniLocale();
+  const section = location.pathname.split("/")[1];
+  const desktopEntries = section === "chat"
+    ? snapshot.channels.map((item) => ({ id: item.id, label: copyFor(item.displayName, locale), meta: item.unreadCount ? String(item.unreadCount) : "" }))
+    : section === "tasks"
+      ? tasks.map((item) => ({ id: item.id, label: copyFor(item.title, locale), meta: copyFor(item.dueLabel, locale) }))
+      : section === "meetings"
+        ? meetings.map((item) => ({ id: item.id, label: copyFor(item.title, locale), meta: copyFor(item.startLabel, locale) }))
+        : section === "documents"
+          ? snapshot.documents.map((item) => ({ id: item.id, label: copyFor(item.name, locale), meta: copyFor(item.typeLabel, locale) }))
+          : section === "people"
+            ? snapshot.people.map((item) => ({ id: item.id, label: item.name, meta: copyFor(item.title, locale) }))
+            : [];
+  const hasDesktopList = ["chat", "tasks", "meetings", "documents", "people"].includes(section);
+  const selectedId = location.pathname.split("/")[2];
+
+  useEffect(() => {
+    if (!selectedId && desktopEntries.length && window.matchMedia?.("(min-width: 1024px)")?.matches) {
+      navigate(`/${section}/${desktopEntries[0].id}`, { replace: true });
+    }
+  }, [desktopEntries, navigate, section, selectedId]);
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${scrolled ? "is-scrolled" : ""} ${moreOpen ? "is-more-open" : ""}`}>
       <a className="skip-link" href="#main-content">
         {t("common.skipToContent")}
       </a>
-      <main id="main-content" className="app-content" tabIndex={-1}>
-        {children}
-      </main>
+      <div className="desktop-tabs">
+        <div className="desktop-tabs__inner">
+          <DirectionalLink className="desktop-brand" to="/">YKSG</DirectionalLink>
+          {[...navItems, { key: "documents", to: "/documents", icon: "file" as AppIconName }, { key: "people", to: "/people", icon: "user" as AppIconName }].map((item) => (
+            <DirectionalNavLink key={item.key} to={item.to} className={isPathActive(location.pathname, item.to) ? "is-active" : ""} aria-current={isPathActive(location.pathname, item.to) ? "page" : undefined}>
+              {t(`nav.${item.key}`)}
+              {item.key === "chat" && unreadTotal ? <span className="desktop-tabs__count">{unreadTotal}</span> : null}
+            </DirectionalNavLink>
+          ))}
+          <DirectionalLink className="desktop-settings" to="/settings" aria-label={t("nav.settings")}><AppIcon name="settings" size={20} /></DirectionalLink>
+        </div>
+      </div>
+      <div className={`workspace ${hasDesktopList ? "workspace--list" : ""} ${hasDesktopList && !selectedId ? "workspace--unselected" : ""}`}>
+        {hasDesktopList ? (
+          <aside className="desktop-list" aria-label={t(`nav.${section}`)}>
+            <h2>{t(`nav.${section}`)}</h2>
+            <div className="desktop-list__rows">
+              {desktopEntries.map((item) => (
+                <DirectionalLink key={item.id} to={`/${section}/${item.id}`} className={`desktop-list__row ${selectedId === item.id ? "is-selected" : ""}`} aria-current={selectedId === item.id ? "page" : undefined}>
+                  <strong>{item.label}</strong><span>{item.meta}</span>
+                </DirectionalLink>
+              ))}
+            </div>
+          </aside>
+        ) : null}
+        <main ref={mainRef} id="main-content" className="app-content" tabIndex={-1} onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 40)}>
+          {children}
+        </main>
+        {hasDesktopList && !selectedId ? <div className="desktop-placeholder" aria-hidden="true">{t("common.viewDetails")}</div> : null}
+      </div>
 
       <nav className="bottom-nav" aria-label={t("nav.label")}>
         {navItems.map((item) => {
@@ -195,7 +230,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
               ? `${label}, ${t("chat.unreadCount", { count: unreadTotal })}`
               : label;
           return (
-            <NavLink
+            <DirectionalNavLink
               key={item.key}
               to={item.to}
               className={`bottom-nav__item ${active ? "is-active" : ""}`}
@@ -211,7 +246,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
                 ) : null}
               </span>
               <span>{label}</span>
-            </NavLink>
+            </DirectionalNavLink>
           );
         })}
         <button
@@ -234,6 +269,12 @@ export const AppShell = ({ children }: PropsWithChildren) => {
         onClose={() => setMoreOpen(false)}
         triggerRef={moreTriggerRef}
       />
+      {toast ? (
+        <div className="undo-toast" role="status">
+          <span>{toast.message}</span>
+          <button type="button" onClick={toast.undo}>{t("common.undo")}</button>
+        </div>
+      ) : null}
     </div>
   );
 };

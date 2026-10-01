@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { Page, useParams } from "zmp-ui";
 
 import { AppIcon } from "@/components/AppIcon";
+import { DirectionalLink } from "@/components/DirectionalLink";
 import {
   EmptyState,
   MetadataList,
@@ -53,7 +53,7 @@ const PeopleList = () => {
             <ul className="row-list">
               {filteredPeople.map((person) => (
                 <li key={person.id}>
-                  <Link className="list-row person-row" to={`/people/${person.id}`}>
+                  <DirectionalLink className="list-row person-row" to={`/people/${person.id}`}>
                     <span className="avatar" aria-hidden="true">{person.initials}</span>
                     <span className="list-row__content">
                       <span className="list-row__title-line">
@@ -72,7 +72,7 @@ const PeopleList = () => {
                     <span className="list-row__end" aria-hidden="true">
                       <AppIcon name="arrow-right" size={17} />
                     </span>
-                  </Link>
+                  </DirectionalLink>
                 </li>
               ))}
             </ul>
@@ -135,10 +135,10 @@ const PersonDetail = ({ personId }: { personId: string }) => {
           />
         </section>
         {channel ? (
-          <Link className="button button--secondary button--full" to={`/chat/${channel.id}`}>
+          <DirectionalLink className="button button--secondary button--full" to={`/chat/${channel.id}`}>
             <span aria-hidden="true"><AppIcon name="chat" size={19} /></span>
             {t("people.viewConversation")}
-          </Link>
+          </DirectionalLink>
         ) : null}
       </div>
     </Page>
