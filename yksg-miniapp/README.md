@@ -22,6 +22,15 @@
    ```
 1. **Open** `localhost:3000` in your browser.
 
+## Local LLM experiment
+
+The optional LLM helper lives in `scripts/llm-client.mjs` and runs only in Node.
+Set `EXPLABS_API_KEY` in the local environment for `node test-llm.mjs`; that
+manual command sends a paid API request. Never use a `VITE_` variable for this
+credential or import the helper into Mini App source. The SDK and dotenv are
+development dependencies. `npm test` uses mocked transport and spends no API
+credits. No employee content is connected to this experiment.
+
 ## Deployment
 
 1. **Create** a mini program. For instructions on how to create a mini program, please refer to the [Coffee Shop Tutorial](https://mini.zalo.me/tutorial/coffee-shop/step-1/)

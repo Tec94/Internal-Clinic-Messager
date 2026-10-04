@@ -13,6 +13,7 @@ export default defineConfig({
     },
   },
   test: {
+    include: ["src/test/**/*.test.{ts,tsx}"],
     environment: "jsdom",
     setupFiles: [fileURLToPath(new URL("./src/test/setup.ts", import.meta.url))],
     restoreMocks: true,
