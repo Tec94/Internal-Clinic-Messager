@@ -208,7 +208,7 @@ export function AppShell({
           <ContextMenu.Label className="context-menu__label">
             {t('contextMenu.navigation')}
           </ContextMenu.Label>
-          {navItems.slice(0, 4).map(({ to, label, icon: Icon }) => (
+          {navItems.filter(({ to }) => to !== '/people').map(({ to, label, icon: Icon }) => (
             <ContextMenu.Item
               className="context-menu__item"
               key={to}
