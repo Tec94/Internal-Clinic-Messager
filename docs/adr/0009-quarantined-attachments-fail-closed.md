@@ -1,0 +1,3 @@
+# Attachments pass through quarantine and fail closed
+
+Uploads go to a private quarantine bucket, and only a JWT-verifying Edge Function can promote a file to the private available bucket after a malware scan. Any scan mode other than an approved scanner or the explicit `dev_bypass` refuses promotion. `dev_bypass` is audited, labels the file as unscanned, and must never be used in staging or production. Downloads recheck Channel access and use 60-second signed URLs, and no permanent public URL is ever stored. We chose two buckets over a single bucket with a status flag so that an unscanned file never shares an access path with an available one.

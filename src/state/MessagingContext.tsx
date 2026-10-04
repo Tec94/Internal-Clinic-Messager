@@ -104,11 +104,24 @@ export function MessagingProvider({
     () => attachmentRepositoryOverride ?? createSupabaseAttachmentRepository(),
     [attachmentRepositoryOverride],
   )
-  const membership = authEnabled ? auth.membership : null
+  const membership = authEnabled && auth.status === 'active' ? auth.membership : null
   const productionEnabled =
     authEnabled && auth.status === 'active' && membership !== null
   const attachmentsEnabled =
     productionEnabled && import.meta.env.VITE_ENABLE_ATTACHMENTS === 'true'
+  const activeMemberId = membership?.id
+  const activeOrganizationId = membership?.organizationId
+
+  useEffect(() => {
+    if (!activeMemberId) return
+    return () => {
+      queryClient.removeQueries({
+        predicate: ({ queryKey }) => queryKey[0] === 'messaging'
+          && queryKey[2] === activeOrganizationId
+          && queryKey.at(-1) === activeMemberId,
+      })
+    }
+  }, [activeMemberId, activeOrganizationId, queryClient])
 
   const channelsQuery = useQuery({
     queryKey: [
@@ -125,7 +138,7 @@ export function MessagingProvider({
   })
 
   const membersQuery = useQuery({
-    queryKey: ['messaging', 'members', membership?.organizationId],
+    queryKey: ['messaging', 'members', membership?.organizationId, membership?.id],
     queryFn: () => repository.listMembers(membership!.organizationId),
     enabled: productionEnabled,
   })
@@ -141,8 +154,8 @@ export function MessagingProvider({
   const appendToMessageCache = useCallback((message: MessagingMessage) => {
     if (!membership) return
     queryClient.setQueryData<InfiniteData<MessagePage, MessageCursor | undefined>>(
-      messageQueryKey(membership.organizationId, message.channelId),
-      (current) => appendMessage(current, message),
+      messageQueryKey(membership.organizationId, message.channelId, membership.id),
+      (current) => current ? appendMessage(current, message) : undefined,
     )
   }, [membership, queryClient])
 
@@ -279,8 +292,9 @@ export function useMessagingThread(channelId: string): MessagingThreadState {
     () => messageQueryKey(
       messaging.organizationId ?? 'preview',
       channelId,
+      messaging.currentMemberId,
     ),
-    [channelId, messaging.organizationId],
+    [channelId, messaging.organizationId, messaging.currentMemberId],
   )
 
   const query = useInfiniteQuery({
@@ -303,7 +317,7 @@ export function useMessagingThread(channelId: string): MessagingThreadState {
       (message) => {
         queryClient.setQueryData<
           InfiniteData<MessagePage, MessageCursor | undefined>
-        >(queryKey, (current) => appendMessage(current, message))
+        >(queryKey, (current) => current ? appendMessage(current, message) : undefined)
       },
       setRealtimeError,
     )
@@ -452,8 +466,8 @@ function mapMessage(message: MessagingMessage): Message {
   }
 }
 
-function messageQueryKey(organizationId: string, channelId: string) {
-  return ['messaging', 'messages', organizationId, channelId] as const
+function messageQueryKey(organizationId: string, channelId: string, memberId: string) {
+  return ['messaging', 'messages', organizationId, channelId, memberId] as const
 }
 
 function appendMessage(

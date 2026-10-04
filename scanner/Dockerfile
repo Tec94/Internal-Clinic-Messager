@@ -5,7 +5,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY server.mjs clamd.conf entrypoint.sh ./
+COPY server.mjs clamd-response.mjs clamd.conf entrypoint.sh ./
 RUN chmod 0555 /app/entrypoint.sh
 
 USER root

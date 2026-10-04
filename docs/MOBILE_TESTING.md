@@ -107,14 +107,14 @@ phone. Verify the following behavior before sharing a build:
   navigates history, and minimizes the app only from the root route.
 - Meeting links open in the system browser.
 - The status bar does not overlap the application and uses dark icons.
-- The Zalo launcher stays above the bottom tabs.
-- The Zalo launcher opens `https://chat.zalo.me/` in a separate
-  Zalo-controlled browser window.
+- The More sheet includes the Zalo control when Zalo is enabled.
+- Selecting Zalo opens it through the in-app browser, which shares the
+  system browser's retained Zalo session.
 - The first use shows Zalo sign-in, and a later use can restore Zalo's own
   session.
 
-Capacitor does not receive a user's personal Zalo inbox. It only opens Zalo
-Web Chat through the existing native browser service. Read the
+The Zalo control opens a Zalo-controlled surface; Capacitor never receives
+Zalo credentials or personal inbox data. Read the
 [Zalo integration decision](ZALO_INTEGRATION.md) for this boundary.
 
 ## Troubleshooting

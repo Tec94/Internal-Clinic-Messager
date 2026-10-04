@@ -3,6 +3,30 @@ import { createSupabaseMessagingRepository } from '../services/supabaseMessaging
 import { supabase } from '../utils/supabase'
 
 describe('Supabase messaging repository', () => {
+  it('uses the atomic send RPC without a second notification request', async () => {
+    const result = { data: messageRow('message-1', '2026-07-26T01:00:00.000Z'), error: null }
+    const builder = createBuilder(result)
+    const rpc = vi.fn(() => builder)
+    const invoke = vi.fn()
+    const client = {
+      from: vi.fn(() => builder), rpc, functions: { invoke },
+    } as unknown as typeof supabase
+    const repository = createSupabaseMessagingRepository(client)
+
+    const message = await repository.sendMessage({
+      organizationId: 'organization-1', channelId: 'channel-1', authorMemberId: 'member-1',
+      clientMessageId: 'message-1-client', body: ' message-1 ', isUrgent: false,
+    })
+
+    expect(message.id).toBe('message-1')
+    expect(rpc).toHaveBeenCalledWith('send_message_with_attachments', {
+      target_organization_id: 'organization-1', target_channel_id: 'channel-1',
+      target_author_member_id: 'member-1', target_client_message_id: 'message-1-client',
+      target_body: 'message-1', target_is_urgent: false, target_attachment_ids: [],
+    })
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
   it('maps scoped channels and current send access', async () => {
     const client = fakeClient({
       data: [
@@ -125,6 +149,7 @@ function createBuilder(result: { data: unknown; error: unknown }) {
     limit: vi.fn(),
     or: vi.fn(),
     in: vi.fn(),
+    single: vi.fn().mockResolvedValue(result),
     then: (
       onFulfilled: (value: typeof result) => unknown,
       onRejected?: (reason: unknown) => unknown,

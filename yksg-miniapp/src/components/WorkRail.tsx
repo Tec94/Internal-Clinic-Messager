@@ -14,9 +14,9 @@ const timeFromLabel = (label: string): string => label.match(/\d{1,2}:\d{2}/)?.[
 
 const taskState = (task: MiniTask): TaskMutableState => ({
   status: task.status,
-  checklist: task.checklist.reduce<Record<string, boolean>>((state, item) => {
-    state[item.id] = item.completed;
-    return state;
+  checklist: task.checklist.reduce<Record<string, boolean>>((checklist, item) => {
+    checklist[item.id] = item.completed;
+    return checklist;
   }, {}),
   declineReason: task.declineReason,
   blockerReason: task.blockerReason,

@@ -444,3 +444,10 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+[functions.send-operational-notification]
+verify_jwt = true
+
+[functions.deliver-operational-notifications]
+# The handler requires the dedicated PUSH_WORKER_SECRET before creating an admin client.
+verify_jwt = false

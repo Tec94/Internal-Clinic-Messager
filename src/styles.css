@@ -2879,47 +2879,15 @@ td > small {
   color: var(--on-primary-fixed);
 }
 
-.zalo-widget-shell {
-  position: fixed;
-  z-index: 95;
-  inline-size: 54px;
-  block-size: 54px;
-  inset-inline-end: var(--space-6);
-  inset-block-end: var(--space-6);
-}
-
-.app-shell:has(.composer-region) .zalo-widget-shell {
-  inset-block-end: 112px;
-}
-
-.zalo-widget-trigger {
-  position: relative;
-  display: grid;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  border: 3px solid var(--surface-lowest);
-  border-radius: var(--radius-full);
-  background: #0068ff;
-  box-shadow: 0 8px 18px oklch(33% 0.12 265 / 0.3);
-  color: white;
-  text-decoration: none;
-  transition-property: scale, box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
-}
-
-.zalo-widget-trigger:hover {
-  scale: 1.05;
-  box-shadow: 0 12px 26px oklch(33% 0.12 265 / 0.36);
-}
-
-.zalo-wordmark {
-  color: currentColor;
-  font-family: var(--font-heading);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: -0.07em;
+/* The Zalo rail entry is a managed-popup button, not a route link. */
+button.rail-link {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
 }
 
 /* Dialog and sheet entrance refinements */
@@ -3421,15 +3389,6 @@ td > small {
 
   .incident-command dl {
     grid-template-columns: 1fr;
-  }
-
-  .zalo-widget-shell {
-    inset-inline-end: var(--space-3);
-    inset-block-end: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + var(--space-3));
-  }
-
-  .app-shell:has(.composer-region) .zalo-widget-shell {
-    display: none;
   }
 
   .admin-page .table-wrap {

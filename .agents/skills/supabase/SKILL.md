@@ -1,6 +1,6 @@
 ---
 name: supabase
-description: "Use when doing ANY task involving Supabase. Triggers: Supabase products (Database, Auth, Edge Functions, Realtime, Storage, Vectors, Cron, Queues); client libraries and SSR integrations (supabase-js, @supabase/ssr) in Next.js, React, SvelteKit, Astro, Remix; auth issues (login, logout, sessions, JWT, cookies, getSession, getUser, getClaims, RLS); Supabase CLI or MCP server; schema changes, migrations, declarative schemas, security audits, Postgres extensions (pg_graphql, pg_cron, pg_vector)."
+description: "Implement or debug Supabase APIs, auth, SQL/RLS, migrations, storage, realtime, and CLI workflows."
 metadata:
   author: supabase
   version: "0.1.2"
@@ -16,10 +16,10 @@ Do not rely on training data for Supabase features. Function signatures, config.
 First, fetch `https://supabase.com/changelog.md` (a lightweight summary index — not a heavy pull), scan for `breaking-change` tags relevant to your task, and follow the linked page for any that apply. Then look up the relevant topic using the documentation access methods below.
 
 **2. Verify your work.**
-After implementing any fix, run a test query to confirm the change works. A fix without verification is incomplete.
+Verify the changed behavior with the appropriate existing check. Query or test SQL/RLS changes against an identified, authorized test environment; use UI or documentation checks for changes at those layers. Do not assume an integration test is production-isolated without inspecting its configuration.
 
 **3. Recover from errors, don't loop.**
-If an approach fails after 2-3 attempts, stop and reconsider. Try a different method, check documentation, inspect the error more carefully, and review relevant logs when available. Supabase issues are not always solved by retrying the same command, and the answer is not always in the logs, but logs are often worth checking before proceeding.
+Reconsider a failed approach when new evidence warrants it. Follow the task's authorized stopping condition rather than an arbitrary retry count. Try a different method, check documentation, inspect the error more carefully, and review relevant logs when available. Supabase issues are not always solved by retrying the same command, and the answer is not always in the logs, but logs are often worth checking before proceeding.
 
 **4. Exposing tables to the Data API:** Depending on the user's [Data API settings](https://supabase.com/dashboard/project/<ref>/integrations/data_api/settings), newly created tables may not be automatically exposed via the Data (REST) API. If this is the case, `anon` and `authenticated` roles will need to be explicitly granted access.
 

@@ -1,0 +1,3 @@
+# Zalo as a managed side panel, not an integration
+
+Staff already live in personal Zalo, but Zalo has no API for personal inboxes, and its login page renders empty inside an iframe. Importing or embedding the inbox is therefore impossible through legitimate means. The Workspace instead opens `chat.zalo.me` in a named popup that is docked beside the Workspace and reused on later clicks. YKSG never stores a Zalo credential, contact, or message, and Zalo data stays outside the YKSG authorization and retention boundary. Docking is best-effort: if the browser refuses window placement, the panel falls back to an ordinary popup. See [ZALO_INTEGRATION.md](../ZALO_INTEGRATION.md).

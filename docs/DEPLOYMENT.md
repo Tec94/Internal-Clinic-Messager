@@ -130,15 +130,71 @@ security policy, deep links, `sw.js` cache policy, install prompt, update
 prompt, session expiry, and network-only Supabase requests on the deployed
 HTTPS URL.
 
-The Zalo launcher opens `https://chat.zalo.me/` in a separate window. Verify
-the first sign-in, later Zalo session restore, popup handling, and native
-browser launch. Do not add a Zalo password or user token to Vercel or
-Supabase. Use the [Zalo integration decision](ZALO_INTEGRATION.md) for the
-tested product boundary.
+The Zalo control opens the personal Zalo inbox in a managed side-panel popup.
+Verify the panel opens beside the workspace on the deployed HTTPS URL, that a
+second click re-focuses the existing panel, and that pop-up blocking surfaces
+the localized guidance. Do not add a Zalo password or user token to Vercel or
+Supabase. Use the
+[Zalo integration decision](ZALO_INTEGRATION.md) for the tested product
+boundary.
 
 Deploy `send-operational-notification` with JWT verification. Enable
 notifications only after its VAPID secrets are set and a real device proves
 generic delivery, quiet hours, and invalid-subscription revocation.
+
+Set `PUSH_ALLOWED_ORIGINS` for the notification function to the comma-separated,
+exact HTTPS origins of the push services used by the supported desktop browsers.
+Use canonical origins without paths, trailing slashes, credentials or wildcards;
+verify each origin against the provider's documentation and actual subscription.
+No provider is enabled by default. Missing or invalid configuration disables
+dispatch, and queued deliveries outside those origins are cancelled.
+This prevents member-editable subscriptions from directing backend requests to
+arbitrary destinations.
+
+Apply the durable notification queue migration before deploying the enqueue
+function and `deliver-operational-notifications` worker. The worker disables
+gateway JWT verification because it authenticates a dedicated server-only
+`PUSH_WORKER_SECRET` from the `x-notification-worker-secret` header before
+creating a privileged client. Keep the user-facing enqueue function's JWT
+verification enabled. All queue RPCs are service-role-only; recipients and
+membership validity are rechecked when work is claimed.
+
+Set `PUSH_WORKER_SECRET`, `PUSH_DELIVERY_LEASE_SECONDS`, and
+`PUSH_DELIVERY_RETRY_SECONDS` alongside the existing VAPID and origin settings.
+The owner delegated the timing choice: configure a 60-second retry and a
+once-per-minute worker schedule to balance prompt alerts with polling cost.
+Configure the lease to 400 seconds, matching the documented maximum paid worker
+wall lifetime (free workers have a 150-second lifetime), so an ordinary overlapping
+invocation cannot reclaim a live worker's delivery. See
+[Supabase Edge Function limits](https://supabase.com/docs/guides/functions/limits).
+These values are explicit in `.env.example`; the function still rejects missing
+configuration. Lease duration must fit the Node socket timeout representation
+(signed 32-bit milliseconds); retry duration must fit the PostgreSQL integer RPC
+parameter. Invoke the worker from a trusted scheduler;
+never ship its secret to either client. Deployment and scheduling are separate
+release steps; no hosted scheduler is configured by editing these files.
+
+The queue records one recipient snapshot per message and one delivery per
+subscription. Transient failures retry at the configured interval or the
+provider's longer `Retry-After`; quiet hours suppress delivery without retry,
+preserving the existing notification preference behavior. Provider 404/410
+revokes the subscription, lost access cancels delivery, and invalid destinations
+or preferences and provider 400 cancel that delivery. Provider 401/403 persists
+a retry and stops that invocation's drain to avoid repeating configuration failures
+across every subscriber. Each invocation drains only work due at its start, so
+new arrivals and retries belong to a later invocation. No attempt cap, delivery-age cutoff, or
+retention deletion is introduced. Crashed workers release work when leases
+expire; fencing tokens prevent stale acknowledgements. A provider may accept a
+push before the worker crashes, so retry delivery can duplicate that notification.
+The existing channel tag remains, but is not an exactly-once guarantee.
+
+The public `send_message_with_attachments` RPC saves the message and enqueues
+notifications in one transaction. An enqueue failure rolls back the send; a
+client retry preserves the message and queue idempotency. The browser no longer
+makes a second Edge Function request for each message. Internal task/meeting
+helpers still call the unchanged private send helper, so the queue does not
+silently start notifying those message types. The enqueue Edge Function remains
+an authenticated, idempotent compatibility endpoint.
 
 ## PWABuilder and stores
 

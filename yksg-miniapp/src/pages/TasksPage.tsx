@@ -129,9 +129,9 @@ const TaskDetail = ({ taskId }: { taskId: string }) => {
         taskId: task.id,
         task: {
           status: task.status,
-          checklist: task.checklist.reduce<Record<string, boolean>>((state, item) => {
-            state[item.id] = item.completed;
-            return state;
+          checklist: task.checklist.reduce<Record<string, boolean>>((checklist, item) => {
+            checklist[item.id] = item.completed;
+            return checklist;
           }, {}),
           declineReason: task.declineReason,
           blockerReason: task.blockerReason,

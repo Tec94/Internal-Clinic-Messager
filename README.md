@@ -5,14 +5,11 @@ combines a low-noise, three-pane workspace with chat, tasks, documents,
 meetings, people, announcements, and scoped administration.
 
 > **Note:** The `develop` branch contains the durable Supabase application and
-> the non-authenticated preview. Authenticated Chat, Inbox, Tasks, Meetings,
-> directory, announcements, settings, and supported administration use
-> database repositories. Thirteen migrations are deployed to the hosted
-> development backend, and the tracked fourteenth migration phases out MFA.
-> Apply that migration before deploying this frontend. The 14-account hosted
-> authorization matrix is provisioned and verified. Store approval, production
-> secrets, scanner deployment, backup evidence, and device acceptance remain
-> release gates.
+> the non-authenticated preview. Apply every migration in `supabase/migrations`
+> to the target backend before deploying the frontend. Store approval,
+> production secrets, scanner deployment, backup evidence, and device
+> acceptance remain release gates; the
+> [production roadmap](docs/PRODUCTION_ROADMAP.md) tracks their status.
 > This is not a regulatory compliance control.
 
 ## Run the application
@@ -58,6 +55,9 @@ member profiles, paginated messages, sends, Realtime updates, resumable private
 attachments, and short-lived downloads. Preview and unfinished modules retain
 `ClinicProvider` data.
 
+Read [CONTEXT.md](CONTEXT.md) for the domain glossary and
+[docs/adr](docs/adr/) for architectural decisions.
+
 Read [the product architecture](docs/PRODUCT_ARCHITECTURE.md) for channel
 taxonomy, scoped roles, lifecycle rules, administrative governance, and the
 operational-only data boundary.
@@ -81,18 +81,21 @@ content. This behavior intentionally warns rather than blocks.
 Staffing screens display imported snapshots with capture times. The product
 doesn't monitor live intake capacity, throughput, or diversion status.
 
-## Personal Zalo launcher
+## Zalo side panel
 
-The bottom-right Zalo control opens
-[Zalo Web Chat](https://chat.zalo.me/) in a separate Zalo-controlled window.
-Zalo requests sign-in on first use and can restore its own session on later
-visits. YKSG does not store a Zalo password, token, contact, or message.
+The sidebar `Zalo` control opens the employee's personal Zalo inbox in a
+managed side-panel popup that stays beside the workspace; clicking it again
+re-focuses the existing panel instead of navigating away. Zalo keeps its own
+sign-in in the browser profile, so employees stay signed in across days and
+YKSG logouts until they sign out of Zalo. YKSG does not store a Zalo
+password, token, contact, or message.
 
 Set `VITE_ENABLE_ZALO_LAUNCHER=true` to show the control on authenticated
 routes. The current Zalo APIs do not expose a personal inbox or existing chat
-history to another application. Read the
+history to another application, and Zalo withholds its login UI inside
+iframes, so embedding is not possible. Read the
 [Zalo integration decision](docs/ZALO_INTEGRATION.md) for the capability
-review, security boundary, and device acceptance checks.
+review, security boundary, and acceptance checks.
 
 ## Private development attachments
 

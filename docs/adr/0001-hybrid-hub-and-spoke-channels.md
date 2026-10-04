@@ -1,0 +1,3 @@
+# Hybrid hub-and-spoke channel taxonomy
+
+Channels are organized as Organization and Location Hubs plus typed Department, Interface, Project, Leadership, Incident, and Direct message Channels. Membership in these Channels follows from Assignments. We rejected a flat list because it hides location and department meaning as the Organization grows. We rejected one workspace per Location because Float Members would keep switching context. We rejected nested department workspaces because cross-department work would require many invitations and be hard to find. The cost is that Channel metadata and lifecycle rules need disciplined administration. See [PRODUCT_ARCHITECTURE.md](../PRODUCT_ARCHITECTURE.md) for the taxonomy table.

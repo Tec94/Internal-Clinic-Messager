@@ -6,18 +6,20 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
+  MessageCircle,
   MessageSquareText,
   Settings,
   ShieldCheck,
   Users,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   useNativeBackHandler,
   useNativePlatform,
 } from '../native/useNativePlatform'
+import { isZaloPanelOpen, openOrFocusZaloPanel, syncZaloPanelDock } from '../services/zaloPanel'
 import { useClinic } from '../state/ClinicContext'
 import { useMessaging } from '../state/MessagingContext'
 import { ChannelCreationDialog } from './ChannelCreationDialog'
@@ -26,7 +28,6 @@ import { MobileNavigation } from './MobileNavigation'
 import { PwaStatus } from './PwaStatus'
 import { IconButton } from './ui'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
-import { ZaloPersonalLauncher } from './ZaloPersonalLauncher'
 
 export function AppShell({
   authEnabled = false,
@@ -34,7 +35,7 @@ export function AppShell({
   authEnabled?: boolean
 }) {
   const { t } = useTranslation()
-  const { isNative } = useNativePlatform()
+  const { isNative, openExternalUrl } = useNativePlatform()
   const { hasPermission } = useClinic()
   const {
     channels,
@@ -44,6 +45,8 @@ export function AppShell({
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [createChannelOpen, setCreateChannelOpen] = useState(false)
+  const [zaloPanelOpen, setZaloPanelOpen] = useState(false)
+  const [zaloBlocked, setZaloBlocked] = useState(false)
   const channelDialogTrigger = useRef<HTMLElement | null>(null)
   const workspaceMenuTrigger = useRef<HTMLButtonElement | null>(null)
   const unreadTotal = channels.reduce((total, channel) => total + channel.unreadCount, 0)
@@ -71,6 +74,34 @@ export function AppShell({
     else closeSidebar()
     return true
   })
+
+  const zaloEnabled = !authEnabled
+    || import.meta.env.VITE_ENABLE_ZALO_LAUNCHER === 'true'
+
+  // Keep the Zalo control in sync with the popup window lifecycle, and keep
+  // the panel docked against this window's right edge when it is resized.
+  useEffect(() => {
+    if (!zaloEnabled) return
+    const id = window.setInterval(() => setZaloPanelOpen(isZaloPanelOpen()), 1000)
+    window.addEventListener('resize', syncZaloPanelDock)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('resize', syncZaloPanelDock)
+    }
+  }, [zaloEnabled])
+
+  const handleZaloPanel = () => {
+    setZaloBlocked(false)
+    if (isNative) {
+      // Capacitor: open Zalo in the in-app browser, which shares the system
+      // browser's retained Zalo session.
+      void openExternalUrl('https://chat.zalo.me/').catch(() => setZaloBlocked(true))
+      return
+    }
+    const status = openOrFocusZaloPanel()
+    setZaloBlocked(status === 'blocked')
+    setZaloPanelOpen(status !== 'blocked')
+  }
 
   const navItems = [
     { to: '/inbox', label: t('nav.inbox'), icon: LayoutDashboard, active: location.pathname === '/inbox' },
@@ -106,6 +137,18 @@ export function AppShell({
                     <span>{label}</span>
                   </NavLink>
                 ))}
+                {zaloEnabled ? (
+                  <button
+                    type="button"
+                    className={`rail-link rail-link--zalo ${zaloPanelOpen ? 'is-active' : ''}`}
+                    onClick={handleZaloPanel}
+                    aria-pressed={zaloPanelOpen}
+                    aria-label={t('zalo.openPanel')}
+                  >
+                    <MessageCircle size={21} aria-hidden="true" />
+                    <span>{t('nav.zalo')}</span>
+                  </button>
+                ) : null}
                 {hasPermission('viewAdmin') ? (
                   <NavLink to="/admin/overview" className={({ isActive }) => `rail-link ${isActive ? 'is-active' : ''}`}>
                     <ShieldCheck size={21} aria-hidden="true" />
@@ -140,7 +183,7 @@ export function AppShell({
               </main>
             </div>
 
-            <MobileNavigation unreadTotal={unreadTotal} chatPath="/channels" />
+            <MobileNavigation unreadTotal={unreadTotal} chatPath="/channels" zaloEnabled={zaloEnabled} onOpenZalo={handleZaloPanel} />
 
             {supportsChannelCreation ? (
               <ChannelCreationDialog
@@ -150,10 +193,7 @@ export function AppShell({
             ) : null}
             {!authEnabled ? <DeveloperRolePanel /> : null}
             {!isNative ? <PwaStatus /> : null}
-            {(!authEnabled
-              || import.meta.env.VITE_ENABLE_ZALO_LAUNCHER === 'true')
-              ? <ZaloPersonalLauncher />
-              : null}
+            {zaloBlocked ? <p className="sr-only" role="alert">{t('zalo.blocked')}</p> : null}
             <button type="button" className={`sidebar-scrim ${sidebarOpen ? 'is-visible' : ''}`} onClick={closeSidebar} aria-label={t('common.close')} />
           </div>
         </div>
@@ -168,7 +208,7 @@ export function AppShell({
           <ContextMenu.Label className="context-menu__label">
             {t('contextMenu.navigation')}
           </ContextMenu.Label>
-          {navItems.slice(0, 4).map(({ to, label, icon: Icon }) => (
+          {navItems.filter(({ to }) => to !== '/people').map(({ to, label, icon: Icon }) => (
             <ContextMenu.Item
               className="context-menu__item"
               key={to}

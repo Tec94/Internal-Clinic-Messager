@@ -30,7 +30,7 @@ import Layout from "@/components/layout";
 import appConfig from "../app-config.json";
 
 if (!window.APP_CONFIG) {
-  window.APP_CONFIG = appConfig as any;
+  window.APP_CONFIG = appConfig as typeof window.APP_CONFIG;
 }
 
 const root = createRoot(document.getElementById("app")!);

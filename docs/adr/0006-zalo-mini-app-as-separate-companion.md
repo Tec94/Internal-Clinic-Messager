@@ -1,0 +1,3 @@
+# Zalo Mini App as a separate mobile companion
+
+The Mini App lives in its own `yksg-miniapp/` project, built on Zalo's ZMP framework and `zmp-ui`, not on the Workspace's React stack. Mini Apps must use Zalo's toolchain and pass Zalo's review, so sharing UI code with the Workspace would fight both. The Mini App covers only the highest-value mobile views (inbox, tasks, meeting responses) and complements the Workspace rather than replacing it. It still cannot read the personal Zalo inbox. It currently runs on local fixture data, and connecting it to the Supabase backend is a separate, future decision. See [ZALO_MINI_APP.md](../ZALO_MINI_APP.md).

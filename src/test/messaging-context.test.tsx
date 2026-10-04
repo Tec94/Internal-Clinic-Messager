@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -13,14 +13,16 @@ import {
   useMessagingThread,
 } from '../state/MessagingContext'
 
+const authState = vi.hoisted(() => ({
+  status: 'active',
+  membership: {
+    id: 'member-1',
+    organizationId: 'organization-1',
+  },
+}))
+
 vi.mock('../state/AuthContext', () => ({
-  useAuth: () => ({
-    status: 'active',
-    membership: {
-      id: 'member-1',
-      organizationId: 'organization-1',
-    },
-  }),
+  useAuth: () => authState,
   useOptionalAuth: () => ({
     status: 'active',
     membership: {
@@ -35,6 +37,8 @@ describe('authenticated messaging context', () => {
   let repository: MessagingRepository
 
   beforeEach(() => {
+    authState.status = 'active'
+    authState.membership.id = 'member-1'
     realtimeMessage = undefined
     repository = {
       listChannels: vi.fn().mockResolvedValue([{
@@ -74,6 +78,38 @@ describe('authenticated messaging context', () => {
         return { unsubscribe: vi.fn().mockResolvedValue(undefined) }
       }),
     }
+  })
+
+  it('discards private cached data when access ends and refetches on return', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+    })
+    const tree = () => (
+      <QueryClientProvider client={queryClient}>
+        <ClinicProvider>
+          <MessagingProvider authEnabled repository={repository}>
+            <MessagingProbe />
+          </MessagingProvider>
+        </ClinicProvider>
+      </QueryClientProvider>
+    )
+    const view = render(tree())
+    expect(await screen.findByText('Initial message')).toBeInTheDocument()
+    authState.status = 'signedOut'
+    view.rerender(tree())
+    await waitFor(() => expect(
+      queryClient.getQueryCache().findAll({ queryKey: ['messaging'] })
+        .some((query) => query.state.data !== undefined),
+    ).toBe(false))
+    realtimeMessage?.(message('message-9', 'Late message'))
+    expect(queryClient.getQueryCache().findAll({ queryKey: ['messaging'] })
+      .some((query) => query.state.data !== undefined)).toBe(false)
+    expect(screen.queryByText('Initial message')).not.toBeInTheDocument()
+    vi.mocked(repository.listMessages).mockResolvedValue({ items: [], nextCursor: null })
+    authState.status = 'active'
+    view.rerender(tree())
+    await waitFor(() => expect(repository.listMessages).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('Initial message')).not.toBeInTheDocument()
   })
 
   it('loads authenticated data, sends, and deduplicates Realtime inserts', async () => {
