@@ -1,5 +1,6 @@
 import net from 'node:net'
 import http from 'node:http'
+import { isCleanScanResult } from './clamd-response.mjs'
 
 const port = Number(process.env.PORT || 8080)
 const secret = process.env.SCANNER_SHARED_SECRET
@@ -39,9 +40,9 @@ http.createServer(async (request, response) => {
     }
     const result = await scan(bytes)
     return send(response, 200, {
-      clean: result.endsWith('OK'),
+      clean: isCleanScanResult(result),
       scanner: 'clamav',
-      signature: result.slice(0, 120),
+      signature: result.replace(/\0$/, '').slice(0, 120),
     })
   } catch {
     return send(response, 503, { error: 'Scan failed' })
@@ -65,7 +66,7 @@ function scan(bytes) {
       socket.write(Buffer.alloc(4))
     })
     socket.on('data', (chunk) => chunks.push(chunk))
-    socket.on('end', () => resolve(Buffer.concat(chunks).toString().trim()))
+    socket.on('end', () => resolve(Buffer.concat(chunks).toString()))
     socket.on('timeout', () => socket.destroy(new Error('Scan timed out')))
     socket.on('error', reject)
   })
