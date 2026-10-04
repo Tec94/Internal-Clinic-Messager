@@ -10,11 +10,14 @@ import { MiniMeeting, MiniTask, TaskMutableState } from "@/types";
 
 type RailEntry = { kind: "task"; item: MiniTask } | { kind: "meeting"; item: MiniMeeting };
 
-const timeFromLabel = (label: string): string => label.match(/\d{1,2}:\d{2}/)?.[0] ?? label.split(" · ").at(-1) ?? label;
+const timeFromLabel = (label: string): string => label.match(/\d{1,2}:\d{2}/)?.[0] ?? label.split(" · ").pop() ?? label;
 
 const taskState = (task: MiniTask): TaskMutableState => ({
   status: task.status,
-  checklist: Object.fromEntries(task.checklist.map((item) => [item.id, item.completed])),
+  checklist: task.checklist.reduce<Record<string, boolean>>((checklist, item) => {
+    checklist[item.id] = item.completed;
+    return checklist;
+  }, {}),
   declineReason: task.declineReason,
   blockerReason: task.blockerReason,
 });

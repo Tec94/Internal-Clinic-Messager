@@ -29,7 +29,7 @@ export const InboxPage = () => {
       <header className="page-header inbox-header">
         <div className="page-header__inner">
           <div className="page-header__copy">
-            <h1>{t("inbox.greeting", { name: snapshot.userDisplayName.split(" ").at(-1) })}</h1>
+            <h1>{t("inbox.greeting", { name: snapshot.userDisplayName.split(" ").pop() })}</h1>
             <p>{copyFor(snapshot.scope, locale)}</p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export const InboxPage = () => {
                       <span className="channel-row__avatar" aria-hidden="true">{copyFor(channel.displayName, locale).slice(0, 2).toLocaleUpperCase(locale)}</span>
                       <span className="channel-row__copy">
                         <strong>{copyFor(channel.displayName, locale)}</strong>
-                        {message ? <span>{message.senderName.split(" ").at(-1)}: {copyFor(message.body, locale)}</span> : null}
+                        {message ? <span>{message.senderName.split(" ").pop()}: {copyFor(message.body, locale)}</span> : null}
                       </span>
                       <span className="channel-row__end">
                         {message ? <time>{timeOf(copyFor(message.timeLabel, locale))}</time> : null}

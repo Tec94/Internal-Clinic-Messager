@@ -44,7 +44,7 @@ const ChannelList = () => {
                       <span className="channel-row__avatar" aria-hidden="true">{copyFor(channel.displayName, locale).slice(0, 2).toLocaleUpperCase(locale)}</span>
                       <span className="channel-row__copy">
                         <strong>{copyFor(channel.displayName, locale)}</strong>
-                        {message ? <span>{message.senderName.split(" ").at(-1)}: {copyFor(message.body, locale)}</span> : <span>{copyFor(channel.purpose, locale)}</span>}
+                        {message ? <span>{message.senderName.split(" ").pop()}: {copyFor(message.body, locale)}</span> : <span>{copyFor(channel.purpose, locale)}</span>}
                       </span>
                       <span className="channel-row__end">
                         {message ? <time>{timeOf(copyFor(message.timeLabel, locale))}</time> : null}
