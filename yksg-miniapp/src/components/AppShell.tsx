@@ -177,12 +177,13 @@ export const AppShell = ({ children }: PropsWithChildren) => {
             : [];
   const hasDesktopList = ["chat", "tasks", "meetings", "documents", "people"].includes(section);
   const selectedId = location.pathname.split("/")[2];
+  const firstDesktopEntryId = desktopEntries[0]?.id;
 
   useEffect(() => {
-    if (!selectedId && desktopEntries.length && window.matchMedia?.("(min-width: 1024px)")?.matches) {
-      navigate(`/${section}/${desktopEntries[0].id}`, { replace: true });
+    if (!selectedId && firstDesktopEntryId && window.matchMedia?.("(min-width: 1024px)")?.matches) {
+      navigate(`/${section}/${firstDesktopEntryId}`, { replace: true });
     }
-  }, [desktopEntries, navigate, section, selectedId]);
+  }, [firstDesktopEntryId, navigate, section, selectedId]);
 
   return (
     <div className={`app-shell ${scrolled ? "is-scrolled" : ""} ${moreOpen ? "is-more-open" : ""}`}>
