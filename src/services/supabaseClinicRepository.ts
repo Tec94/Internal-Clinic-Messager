@@ -278,7 +278,7 @@ export function createSupabaseClinicRepository(
   client: typeof supabase = supabase,
 ): SupabaseClinicRepository {
   return {
-    async loadSnapshot(scope) {
+    loadSnapshot: coalesceSnapshotRefreshes(async (scope) => {
       const [
         organizationResult,
         locationsResult,
@@ -904,7 +904,7 @@ export function createSupabaseClinicRepository(
           metadata: normalizeAuditMetadata(event.metadata),
         })),
       }
-    },
+    }),
 
     async listTasks(scope, filters = {}, cursor, limit = 50) {
       return queryTaskPage(client, scope, filters, cursor, limit)
@@ -1323,6 +1323,37 @@ export function createSupabaseClinicRepository(
         throw new Error(`Could not resolve the access request: ${error.message}`)
       }
     },
+  }
+}
+
+function coalesceSnapshotRefreshes(
+  readSnapshot: SupabaseClinicRepository['loadSnapshot'],
+): SupabaseClinicRepository['loadSnapshot'] {
+  const inFlight = new Map<string, {
+    refresh: { requested: boolean }
+    promise: Promise<ClinicSnapshot>
+  }>()
+
+  return (scope) => {
+    const key = JSON.stringify([scope.organizationId, scope.memberId])
+    const current = inFlight.get(key)
+    if (current) {
+      current.refresh.requested = true
+      return current.promise
+    }
+
+    const refresh = { requested: false }
+    const promise = (async () => {
+      let snapshot: ClinicSnapshot
+      do {
+        refresh.requested = false
+        snapshot = await readSnapshot(scope)
+        // A change received during the read still needs a fresh snapshot.
+      } while (refresh.requested)
+      return snapshot
+    })().finally(() => { inFlight.delete(key) })
+    inFlight.set(key, { refresh, promise })
+    return promise
   }
 }
 
