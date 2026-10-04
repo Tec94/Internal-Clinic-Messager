@@ -160,12 +160,22 @@ export function ClinicProvider({
     && auth?.status === 'active'
     && auth.membership !== null
   )
+  const activeOrganizationId = productionEnabled ? auth?.membership?.organizationId : undefined
+  const activeMemberId = productionEnabled ? auth?.membership?.id : undefined
+  useEffect(() => {
+    if (!activeMemberId) return
+    return () => {
+      clinicQueryClient.removeQueries({
+        queryKey: ['clinic', 'snapshot', activeOrganizationId, activeMemberId],
+      })
+    }
+  }, [activeOrganizationId, activeMemberId])
   const snapshotQuery = useQuery({
     queryKey: [
       'clinic',
       'snapshot',
-      auth?.membership?.organizationId,
-      auth?.membership?.id,
+      activeOrganizationId,
+      activeMemberId,
     ],
     queryFn: () => repository.loadSnapshot({
       organizationId: auth!.membership!.organizationId,
