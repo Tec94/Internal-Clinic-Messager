@@ -266,11 +266,7 @@ export function createSupabaseMessagingRepository(
         .single()
 
       if (error) throw new Error(`Could not send message: ${error.message}`)
-      const message = await loadMessage(client, (data as MessageRow).id)
-      void client.functions.invoke('send-operational-notification', {
-        body: { messageId: message.id },
-      })
-      return message
+      return loadMessage(client, (data as MessageRow).id)
     },
 
     subscribeToMessages(channelId, onMessage, onError) {
