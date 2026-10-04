@@ -5,14 +5,11 @@ combines a low-noise, three-pane workspace with chat, tasks, documents,
 meetings, people, announcements, and scoped administration.
 
 > **Note:** The `develop` branch contains the durable Supabase application and
-> the non-authenticated preview. Authenticated Chat, Inbox, Tasks, Meetings,
-> directory, announcements, settings, and supported administration use
-> database repositories. Thirteen migrations are deployed to the hosted
-> development backend, and the tracked fourteenth migration phases out MFA.
-> Apply that migration before deploying this frontend. The 14-account hosted
-> authorization matrix is provisioned and verified. Store approval, production
-> secrets, scanner deployment, backup evidence, and device acceptance remain
-> release gates.
+> the non-authenticated preview. Apply every migration in `supabase/migrations`
+> to the target backend before deploying the frontend. Store approval,
+> production secrets, scanner deployment, backup evidence, and device
+> acceptance remain release gates; the
+> [production roadmap](docs/PRODUCTION_ROADMAP.md) tracks their status.
 > This is not a regulatory compliance control.
 
 ## Run the application
@@ -57,6 +54,9 @@ Chat and Inbox use a tested TanStack Query boundary for authorized channels,
 member profiles, paginated messages, sends, Realtime updates, resumable private
 attachments, and short-lived downloads. Preview and unfinished modules retain
 `ClinicProvider` data.
+
+Read [CONTEXT.md](CONTEXT.md) for the domain glossary and
+[docs/adr](docs/adr/) for architectural decisions.
 
 Read [the product architecture](docs/PRODUCT_ARCHITECTURE.md) for channel
 taxonomy, scoped roles, lifecycle rules, administrative governance, and the

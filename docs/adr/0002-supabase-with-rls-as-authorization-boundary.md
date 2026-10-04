@@ -1,0 +1,3 @@
+# Supabase with RLS as the authorization boundary
+
+The backend is Supabase (Postgres, Auth, Storage, Realtime). Postgres row-level security is the authoritative check for Membership state, Role and Scope, Channel access, and sender identity. The browser gets only the project URL and a publishable key, and privileged actions run in Edge Functions or security-definer RPCs. Frontend permission checks only shape presentation, so a module must not ship a production UI until its RLS policies and pgTAP tests exist. We chose this over a custom API server because one managed service covers every backend need of this codebase. The cost is that authorization logic lives in SQL migrations.

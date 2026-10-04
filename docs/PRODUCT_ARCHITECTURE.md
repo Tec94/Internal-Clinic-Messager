@@ -134,21 +134,13 @@ and archive rules.
 Channel names must describe operational work. Names such as `patient-cases`,
 medical record numbers, and patient names trigger an advisory warning.
 
-## Structural model comparison
+## Structural model
 
-Three models were evaluated on a five-point scale, where five is the strongest
-fit.
-
-| Model | Onboarding | Cross-department work | Maintenance | Third-location growth | Shell/channel fit |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Flat channel list | 4 | 2 | 2 | 1 | 3 |
-| Nested department workspaces | 2 | 1 | 3 | 3 | 2 |
-| Hybrid hub-and-spoke | 4 | 5 | 4 | 5 | 5 |
-
-The product uses the hybrid hub-and-spoke model. Organization and location hubs
+The product uses a hybrid hub-and-spoke model. Organization and location hubs
 provide predictable entry points, while department, interface, project, and
-incident channels contain specialized work. The accepted trade-off is that
-channel metadata and lifecycle rules require disciplined administration.
+incident channels contain specialized work. See
+[ADR 0001](adr/0001-hybrid-hub-and-spoke-channels.md) for the alternatives
+and trade-off.
 
 ## Cross-department communication design
 
@@ -347,22 +339,10 @@ The administrative control plane owns exceptional access and communication.
 - A department with two or three people receives one home channel until a
   separate audience or workflow justifies another.
 
-## Routes not taken
+## Decisions
 
-The selected model avoids several structures that create predictable problems.
-
-- A flat channel list was rejected because location and department meaning
-  becomes invisible as the organization grows.
-- Separate workspaces per location were rejected because float staff and shared
-  departments would constantly switch context.
-- Nested department workspaces were rejected because cross-department work
-  becomes invitation-heavy and difficult to discover.
-- A separate admin application was rejected because it duplicates shell rules
-  and hides current location context.
-- Built-in shift scheduling was rejected because it would duplicate the
-  external system of record.
-- Strict automated PHI blocking was rejected for this preview because the
-  deterministic detector is not accurate enough to make compliance decisions.
+Architectural decisions and rejected alternatives live in [docs/adr](adr/).
+Terms used here are defined in [CONTEXT.md](../CONTEXT.md).
 
 ## Open questions for stakeholder validation
 
