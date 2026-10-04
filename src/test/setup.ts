@@ -1,5 +1,13 @@
 import '@testing-library/jest-dom/vitest'
 
+// jsdom has no service worker; avoid loading the browser-only virtual module.
+vi.mock('virtual:pwa-register/react', () => ({
+  useRegisterSW: () => ({
+    needRefresh: [false, vi.fn()],
+    updateServiceWorker: vi.fn(),
+  }),
+}))
+
 if (!globalThis.localStorage) {
   const values = new Map<string, string>()
   Object.defineProperty(globalThis, 'localStorage', {
