@@ -16,6 +16,7 @@ import { AppSelect } from '../components/AppSelect'
 import { NativeExternalLink } from '../components/NativeExternalLink'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import i18n from '../i18n'
+import { allowedActions } from '../services/taskLifecycle'
 import { useClinic } from '../state/ClinicContext'
 import type { Meeting, Task, TaskEvent } from '../types/domain'
 import { Avatar, Button, StatusBadge } from '../components/ui'
@@ -81,8 +82,7 @@ export function TasksPage() {
   const owner = users.find((user) => user.id === task.ownerId)
   const creator = users.find((user) => user.id === task.createdById)
   const schedule = task.scheduleId ? taskSchedules.find((item) => item.id === task.scheduleId) : undefined
-  const canCheck = (task.ownerId === currentUser.id || task.collaboratorIds.includes(currentUser.id)) && ['accepted', 'inProgress'].includes(task.status)
-  const canManage = task.createdById === currentUser.id || canViewScope
+  const allowed = allowedActions(task, { id: currentUser.id, role: currentBinding.role })
   const eligibleOwners = channel.memberIds.map((id) => users.find((user) => user.id === id)).filter((user): user is (typeof users)[number] => Boolean(user)).filter((user) => {
     if (currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') return true
     if (!canViewScope) return user.id === currentUser.id
@@ -90,10 +90,7 @@ export function TasksPage() {
   })
   const setChecklistItem = (itemId: string, completed: boolean) => {
     const checklist = task.checklist.map((item) => item.id === itemId ? { ...item, completed } : item)
-    updateTask(task.id, {
-      checklist,
-      status: checklist.every((item) => item.completed) ? 'done' : checklist.some((item) => item.completed) ? 'inProgress' : 'accepted',
-    })
+    updateTask(task.id, { checklist })
   }
 
   return (
@@ -103,15 +100,15 @@ export function TasksPage() {
         <div><span>{t('modules.taskDetails')}</span><h1>{task.title}</h1><p>{channel.displayName}</p></div>
         <TaskStatusBadge status={task.status} />
       </header>
-      {task.status === 'pendingAcceptance' && task.ownerId === currentUser.id ? <TaskAcceptance task={task} /> : null}
+      {allowed.includes('accept') ? <TaskAcceptance task={task} /> : null}
       {task.statusReason ? <section className="task-state-note" role="status"><ShieldAlert size={20} /><div><strong>{t(`task.status.${task.status}`)}</strong><p>{task.statusReason}</p></div></section> : null}
       <section className="module-detail-grid">
         <div className="module-detail-main">
-          <div className="task-section-heading"><div><span>{t('task.progress', { completed: task.checklist.filter((item) => item.completed).length, total: task.checklist.length })}</span><h2>{t('task.checklist')}</h2></div>{task.checklist.length === 0 && task.ownerId === currentUser.id && ['accepted', 'inProgress'].includes(task.status) ? <Button variant="primary" onClick={() => transitionTask(task.id, 'complete')}>{t('task.markComplete')}</Button> : null}</div>
-          {task.checklist.length ? <div className="task-checklist">{task.checklist.map((item) => <div className="task-check-row" key={item.id}><Checkbox checked={item.completed} disabled={!canCheck} onCheckedChange={(checked) => setChecklistItem(item.id, checked)} aria-label={item.label} /><span><strong>{item.label}</strong>{item.completedAt ? <small>{t('task.checkedBy', { name: users.find((user) => user.id === item.completedById)?.name ?? t('admin.systemActor'), time: formatDate(item.completedAt) })}</small> : null}</span>{item.completed ? <CheckCircle2 size={17} /> : null}</div>)}</div> : <p className="module-empty-copy">{t('task.noChecklist')}</p>}
-          {(task.ownerId === currentUser.id || canManage) && !['done', 'declined', 'canceled', 'pendingAcceptance'].includes(task.status) ? <TaskActiveActions task={task} /> : null}
-          {canManage && ['declined', 'blocked', 'pendingAcceptance', 'accepted', 'inProgress'].includes(task.status) ? <TaskManagerActions task={task} eligibleOwners={eligibleOwners} /> : null}
-          {canManage && task.status === 'done' ? <TaskReopenAction task={task} /> : null}
+          <div className="task-section-heading"><div><span>{t('task.progress', { completed: task.checklist.filter((item) => item.completed).length, total: task.checklist.length })}</span><h2>{t('task.checklist')}</h2></div>{allowed.includes('complete') ? <Button variant="primary" onClick={() => transitionTask(task.id, 'complete')}>{t('task.markComplete')}</Button> : null}</div>
+          {task.checklist.length ? <div className="task-checklist">{task.checklist.map((item) => <div className="task-check-row" key={item.id}><Checkbox checked={item.completed} disabled={!allowed.includes('check')} onCheckedChange={(checked) => setChecklistItem(item.id, checked)} aria-label={item.label} /><span><strong>{item.label}</strong>{item.completedAt ? <small>{t('task.checkedBy', { name: users.find((user) => user.id === item.completedById)?.name ?? t('admin.systemActor'), time: formatDate(item.completedAt) })}</small> : null}</span>{item.completed ? <CheckCircle2 size={17} /> : null}</div>)}</div> : <p className="module-empty-copy">{t('task.noChecklist')}</p>}
+          {allowed.includes('block') || allowed.includes('unblock') ? <TaskActiveActions task={task} /> : null}
+          {allowed.includes('reassign') || allowed.includes('cancel') ? <TaskManagerActions task={task} eligibleOwners={eligibleOwners} /> : null}
+          {allowed.includes('reopen') ? <TaskReopenAction task={task} /> : null}
           <TaskTimeline events={taskEvents.filter((event) => event.taskId === task.id)} users={users} />
         </div>
         <aside className="module-metadata">

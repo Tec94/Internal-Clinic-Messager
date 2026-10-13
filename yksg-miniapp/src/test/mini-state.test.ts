@@ -36,8 +36,8 @@ describe("fixture-local state", () => {
     state = miniStateReducer(state, { type: "task/start", taskId });
     expect(state.tasks[taskId].status).toBe("inProgress");
 
-    const incomplete = miniStateReducer(state, { type: "task/complete", taskId });
-    expect(incomplete).toBe(state);
+    const checklistTask = miniStateReducer(state, { type: "task/complete", taskId });
+    expect(checklistTask).toBe(state);
 
     for (const item of snapshot.tasks[0].checklist) {
       state = miniStateReducer(state, {
@@ -46,10 +46,38 @@ describe("fixture-local state", () => {
         itemId: item.id,
       });
     }
-    state = miniStateReducer(state, { type: "task/complete", taskId });
     expect(state.tasks[taskId].status).toBe("done");
+    expect(
+      miniStateReducer(state, {
+        type: "task/toggle-checklist",
+        taskId,
+        itemId: "review-change",
+      }),
+    ).toBe(state);
     state = miniStateReducer(state, { type: "task/reopen", taskId });
+    expect(state.tasks[taskId]).toMatchObject({
+      status: "inProgress",
+      checklist: { "review-change": true, "confirm-team": false },
+    });
+  });
+
+  it("derives status from the checklist like the Workspace", () => {
+    const snapshot = getWorkspaceSnapshot("default");
+    let state = createInitialMiniState(snapshot);
+    const taskId = "confirm-doctor-schedule";
+    state = miniStateReducer(state, { type: "task/accept", taskId });
+    state = miniStateReducer(state, {
+      type: "task/toggle-checklist",
+      taskId,
+      itemId: "review-change",
+    });
     expect(state.tasks[taskId].status).toBe("inProgress");
+    state = miniStateReducer(state, {
+      type: "task/toggle-checklist",
+      taskId,
+      itemId: "review-change",
+    });
+    expect(state.tasks[taskId].status).toBe("accepted");
   });
 
   it("requires reasons and supports blocker recovery", () => {
@@ -71,11 +99,33 @@ describe("fixture-local state", () => {
       blockerReason: "Waiting for an operations check",
     });
 
+    expect(
+      miniStateReducer(state, {
+        type: "task/toggle-checklist",
+        taskId,
+        itemId: "test-print",
+      }),
+    ).toBe(state);
+
     state = miniStateReducer(state, { type: "task/clear-blocker", taskId });
     expect(state.tasks[taskId]).toMatchObject({
       status: "inProgress",
       blockerReason: undefined,
     });
+  });
+
+  it("restores accepted when a blocker clears before checklist work", () => {
+    const snapshot = getWorkspaceSnapshot("default");
+    let state = createInitialMiniState(snapshot);
+    const taskId = "confirm-doctor-schedule";
+    state = miniStateReducer(state, { type: "task/accept", taskId });
+    state = miniStateReducer(state, {
+      type: "task/report-blocker",
+      taskId,
+      reason: "Waiting for the schedule owner",
+    });
+    state = miniStateReducer(state, { type: "task/clear-blocker", taskId });
+    expect(state.tasks[taskId].status).toBe("accepted");
   });
 
   it("updates meeting responses", () => {

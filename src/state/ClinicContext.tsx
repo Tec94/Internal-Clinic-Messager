@@ -27,6 +27,7 @@ import {
 } from '../data/seed'
 import { canSendMessageInChannel, hasPermission } from '../services/permissions'
 import { createSupabaseClinicRepository } from '../services/supabaseClinicRepository'
+import { allowedActions, nextStatus } from '../services/taskLifecycle'
 import { mockUploadAdapter } from '../services/uploadAdapter'
 import type {
   Announcement,
@@ -206,6 +207,7 @@ export function ClinicProvider({
     roleBindings.find((binding) =>
       currentUser.roleBindingIds.includes(binding.id),
     ) ?? roleBindings[3]
+  const member = { id: currentUser.id, role: currentBinding.role }
 
   useEffect(() => {
     if (!productionEnabled || !realtimeOrganizationId) return
@@ -407,8 +409,16 @@ export function ClinicProvider({
   }
 
   const updateTask = (taskId: string, patch: UpdateTaskInput) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task) return
+    let status = patch.status
+    if (patch.checklist) {
+      const checked = nextStatus({ ...task, checklist: patch.checklist }, 'check')
+      if (!checked || !allowedActions(task, member).includes('check')) return
+      status = checked
+    }
     setTasks((items) =>
-      items.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
+      items.map((item) => (item.id === taskId ? { ...item, ...patch, ...(status ? { status } : {}) } : item)),
     )
   }
 
@@ -447,37 +457,31 @@ export function ClinicProvider({
 
   const respondToTask = (taskId: string, response: 'accept' | 'decline', reason?: string) => {
     const task = tasks.find((item) => item.id === taskId)
-    if (!task || task.ownerId !== currentUser.id || task.status !== 'pendingAcceptance') return
-    const nextStatus = response === 'accept' ? 'accepted' : 'declined'
+    if (!task || !allowedActions(task, member).includes(response)) return
+    const next = nextStatus(task, response, reason)
+    if (!next) return
     const changedAt = new Date().toISOString()
     setTasks((items) => items.map((item) => item.id === taskId ? {
       ...item,
-      status: nextStatus,
+      status: next,
       acceptedAt: response === 'accept' ? changedAt : undefined,
       declinedAt: response === 'decline' ? changedAt : undefined,
       statusReason: response === 'decline' ? reason : undefined,
       statusChangedAt: changedAt,
     } : item))
-    appendTaskEvent(task, response === 'accept' ? 'accepted' : 'declined', task.status, nextStatus, reason)
+    appendTaskEvent(task, response === 'accept' ? 'accepted' : 'declined', task.status, next, reason)
   }
 
   const transitionTask = (taskId: string, action: TaskTransitionAction, reason?: string, reopenItemId?: string) => {
     const task = tasks.find((item) => item.id === taskId)
-    if (!task) return
-    const completedCount = task.checklist.filter((item) => item.completed).length
-    const nextStatus: Task['status'] = action === 'block'
-      ? 'blocked'
-      : action === 'unblock'
-        ? completedCount > 0 ? 'inProgress' : 'accepted'
-        : action === 'complete'
-          ? 'done'
-          : action === 'cancel'
-            ? 'canceled'
-            : task.checklist.length > 0 ? 'inProgress' : 'accepted'
+    if (!task || !allowedActions(task, member).includes(action)) return
+    const next = nextStatus(task, action, reason)
+    if (!next) return
+    if (action === 'reopen' && task.checklist.length > 0 && !task.checklist.some((check) => check.id === reopenItemId && check.completed)) return
     const changedAt = new Date().toISOString()
     setTasks((items) => items.map((item) => item.id === taskId ? {
       ...item,
-      status: nextStatus,
+      status: next,
       checklist: action === 'reopen' && reopenItemId
         ? item.checklist.map((check) => check.id === reopenItemId ? { ...check, completed: false, completedAt: undefined, completedById: undefined } : check)
         : item.checklist,
@@ -490,23 +494,23 @@ export function ClinicProvider({
     const eventTypes: Record<TaskTransitionAction, TaskEvent['type']> = {
       block: 'blocked', unblock: 'unblocked', complete: 'completed', reopen: 'reopened', cancel: 'canceled',
     }
-    appendTaskEvent(task, eventTypes[action], task.status, nextStatus, reason)
+    appendTaskEvent(task, eventTypes[action], task.status, next, reason)
   }
 
   const reassignTask = (taskId: string, ownerId: string, reason: string) => {
     const task = tasks.find((item) => item.id === taskId)
-    if (!task) return
-    const nextStatus = ownerId === currentUser.id ? 'accepted' : 'pendingAcceptance'
+    if (!task || !allowedActions(task, member).includes('reassign') || !nextStatus(task, 'reassign', reason)) return
+    const next = ownerId === currentUser.id ? 'accepted' : 'pendingAcceptance'
     const changedAt = new Date().toISOString()
     setTasks((items) => items.map((item) => item.id === taskId ? {
       ...item,
       ownerId,
-      status: nextStatus,
+      status: next,
       acceptedAt: ownerId === currentUser.id ? changedAt : undefined,
       statusReason: undefined,
       statusChangedAt: changedAt,
     } : item))
-    appendTaskEvent(task, 'reassigned', task.status, nextStatus, reason)
+    appendTaskEvent(task, 'reassigned', task.status, next, reason)
   }
 
   const uploadAttachments = async (files: File[], target: UploadTarget) => {

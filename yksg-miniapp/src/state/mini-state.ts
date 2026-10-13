@@ -25,6 +25,17 @@ const taskStatuses: TaskStatus[] = [
 
 const meetingResponses: MeetingResponse[] = ["none", "accepted", "declined"];
 
+// Copied from the Workspace task RPCs (ADR-0006): only active tasks change, and the checklist sets the status.
+const isActive = (task: TaskMutableState) =>
+  task.status === "accepted" || task.status === "inProgress";
+
+const checklistStatus = (checklist: Record<string, boolean>): TaskStatus => {
+  const items = Object.values(checklist);
+  const completed = items.filter(Boolean).length;
+  if (items.length > 0 && completed === items.length) return "done";
+  return completed > 0 ? "inProgress" : "accepted";
+};
+
 export const getMiniStateStorageKey = (scenario: FixtureScenario): string =>
   `${STORAGE_PREFIX}:${scenario}`;
 
@@ -100,37 +111,31 @@ export const miniStateReducer = (
           : task,
       );
     }
+    // No Workspace equivalent: the server starts work only when the first checklist item is checked.
     case "task/start":
       return updateTask(state, action.taskId, (task) =>
         task.status === "accepted" ? { ...task, status: "inProgress" } : task,
       );
     case "task/toggle-checklist":
       return updateTask(state, action.taskId, (task) => {
-        if (!["accepted", "inProgress", "blocked"].includes(task.status)) {
-          return task;
-        }
-        if (!(action.itemId in task.checklist)) return task;
-        return {
-          ...task,
-          checklist: {
-            ...task.checklist,
-            [action.itemId]: !task.checklist[action.itemId],
-          },
+        if (!isActive(task) || !(action.itemId in task.checklist)) return task;
+        const checklist = {
+          ...task.checklist,
+          [action.itemId]: !task.checklist[action.itemId],
         };
+        return { ...task, checklist, status: checklistStatus(checklist) };
       });
     case "task/complete":
-      return updateTask(state, action.taskId, (task) => {
-        const completable = task.status === "accepted" || task.status === "inProgress";
-        const checklistComplete = Object.values(task.checklist).every(Boolean);
-        return completable && checklistComplete
+      return updateTask(state, action.taskId, (task) =>
+        isActive(task) && Object.keys(task.checklist).length === 0
           ? { ...task, status: "done", blockerReason: undefined }
-          : task;
-      });
+          : task,
+      );
     case "task/report-blocker": {
       const reason = action.reason.trim();
       if (!reason) return state;
       return updateTask(state, action.taskId, (task) =>
-        task.status === "accepted" || task.status === "inProgress"
+        isActive(task)
           ? { ...task, status: "blocked", blockerReason: reason }
           : task,
       );
@@ -138,13 +143,25 @@ export const miniStateReducer = (
     case "task/clear-blocker":
       return updateTask(state, action.taskId, (task) =>
         task.status === "blocked"
-          ? { ...task, status: "inProgress", blockerReason: undefined }
+          ? {
+              ...task,
+              status: Object.values(task.checklist).some(Boolean) ? "inProgress" : "accepted",
+              blockerReason: undefined,
+            }
           : task,
       );
     case "task/reopen":
-      return updateTask(state, action.taskId, (task) =>
-        task.status === "done" ? { ...task, status: "inProgress" } : task,
-      );
+      return updateTask(state, action.taskId, (task) => {
+        if (task.status !== "done") return task;
+        // The Workspace asks a manager which item to reopen; the Mini App reopens the last one.
+        const itemId = Object.keys(task.checklist).filter((id) => task.checklist[id]).pop();
+        if (!itemId) return { ...task, status: "accepted" };
+        return {
+          ...task,
+          status: "inProgress",
+          checklist: { ...task.checklist, [itemId]: false },
+        };
+      });
     case "task/restore":
       return updateTask(state, action.taskId, (task) => ({
         ...task,
