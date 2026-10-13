@@ -27,13 +27,13 @@ describe('composerReducer', () => {
   it('shows the Patient-information warning before sending, then sends on confirm', () => {
     const warned = run(typed('Check bed 4'), request(true, candidate))
     expect(warned).toMatchObject({ warningOpen: true, effect: 'none', sending: false, meetingCandidate: null })
-    expect(composerReducer(warned, { type: 'warningConfirmed', candidate: null }))
+    expect(composerReducer(warned, { type: 'warningConfirmed', candidate: null, canSend: true }))
       .toMatchObject({ warningOpen: false, effect: 'send', pendingBody: 'Check bed 4' })
   })
 
   it('checks for a Meeting after the warning is confirmed', () => {
     const warned = run(typed('Sync'), request(true))
-    expect(composerReducer(warned, { type: 'warningConfirmed', candidate }))
+    expect(composerReducer(warned, { type: 'warningConfirmed', candidate, canSend: true }))
       .toMatchObject({ warningOpen: false, meetingCandidate: candidate, effect: 'none' })
   })
 
@@ -67,5 +67,23 @@ describe('composerReducer', () => {
     const urgent: ComposerState = run(typed('Fire drill now'), { type: 'urgentToggled' }, request())
     expect(urgent).toMatchObject({ urgent: true, effect: 'send' })
     expect(composerReducer(urgent, { type: 'sent' }).urgent).toBe(false)
+  })
+
+  it('does not send on warning confirm when the user can no longer send', () => {
+    const warned = run(typed('Check bed 4'), request(true))
+    expect(composerReducer(warned, { type: 'warningConfirmed', candidate: null, canSend: false }))
+      .toMatchObject({ warningOpen: false, sending: false, effect: 'none', draft: 'Check bed 4' })
+    expect(composerReducer(warned, { type: 'warningConfirmed', candidate, canSend: false }))
+      .toMatchObject({ meetingCandidate: candidate, effect: 'none' })
+  })
+
+  it('ignores a second sendPlain while sending', () => {
+    const sending = run(typed('Sync'), request(false, candidate), { type: 'sendPlain' })
+    expect(composerReducer(sending, { type: 'sendPlain' })).toMatchObject({ sending: true, effect: 'none' })
+  })
+
+  it('ignores a second meetingConfirmed while sending', () => {
+    const creating = run(typed('Sync'), request(false, candidate), { type: 'meetingConfirmed' })
+    expect(composerReducer(creating, { type: 'meetingConfirmed' })).toMatchObject({ sending: true, effect: 'none' })
   })
 })

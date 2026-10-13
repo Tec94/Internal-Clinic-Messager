@@ -26,7 +26,7 @@ export type ComposerEvent =
   | { type: 'attachmentsClosed' }
   // The page runs the detectors; the reducer only orders their results.
   | { type: 'sendRequested', warning: boolean, candidate: MeetingCandidate | null }
-  | { type: 'warningConfirmed', candidate: MeetingCandidate | null }
+  | { type: 'warningConfirmed', candidate: MeetingCandidate | null, canSend: boolean }
   | { type: 'warningDismissed' }
   | { type: 'meetingDismissed' }
   | { type: 'meetingConfirmed' }
@@ -70,11 +70,16 @@ function transition(state: ComposerState, event: ComposerEvent): ComposerState {
       if (event.warning) return { ...state, pendingBody: body, warningOpen: true }
       return continueSend(state, body, event.candidate)
     }
-    case 'warningConfirmed': return continueSend({ ...state, warningOpen: false }, state.pendingBody, event.candidate)
+    case 'warningConfirmed': {
+      const closed = { ...state, warningOpen: false }
+      // canSend may change while the warning is open; a Meeting candidate is still shown, as before.
+      if (!event.canSend && !event.candidate) return closed
+      return continueSend(closed, state.pendingBody, event.candidate)
+    }
     case 'warningDismissed': return { ...state, warningOpen: false }
     case 'meetingDismissed': return { ...state, meetingCandidate: null }
-    case 'meetingConfirmed': return { ...state, sending: true, error: '', effect: 'createMeeting' }
-    case 'sendPlain': return startSend(state, state.pendingBody)
+    case 'meetingConfirmed': return state.sending ? state : { ...state, sending: true, error: '', effect: 'createMeeting' }
+    case 'sendPlain': return state.sending ? state : startSend(state, state.pendingBody)
     case 'uploadProgressed': return {
       ...state,
       files: state.files.map((item) => (

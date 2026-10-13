@@ -113,7 +113,7 @@ export function ChannelPage() {
   }
 
   const confirmSend = () => {
-    sendIfDecided(dispatch({ type: 'warningConfirmed', candidate: detectMeetingCandidate(composer.pendingBody, 'Asia/Ho_Chi_Minh') }))
+    sendIfDecided(dispatch({ type: 'warningConfirmed', candidate: detectMeetingCandidate(composer.pendingBody, 'Asia/Ho_Chi_Minh'), canSend }))
   }
 
   const uploadPendingAttachments = async (composerFiles: FileUploadItem[]) => {
@@ -182,7 +182,7 @@ export function ChannelPage() {
     input: Parameters<typeof createMeeting>[0],
   ) => {
     if (!canSend) return
-    dispatch({ type: 'meetingConfirmed' })
+    if (dispatch({ type: 'meetingConfirmed' }).effect !== 'createMeeting') return
     try {
       await createMeeting(input)
       dispatch({ type: 'sent' })
