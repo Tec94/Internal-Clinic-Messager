@@ -57,7 +57,6 @@ export function MessageThread({
     currentMemberId,
     isProduction,
     supportsAttachments,
-    supportsIntegrations,
     downloadAttachment,
   } = useMessaging()
   const thread = useMessagingThread(channel.id)
@@ -122,8 +121,7 @@ export function MessageThread({
         const linkedOwner = users.find((user) => user.id === linkedTask?.ownerId)
         const completedItems = linkedTask?.checklist.filter((item) => item.completed).length ?? 0
         const canAssignFromMessage = Boolean(
-          supportsIntegrations
-          && onAssignTask
+          onAssignTask
           && member
           && !message.taskId
           && !message.meetingId,
@@ -161,14 +159,14 @@ export function MessageThread({
                       onDownload={downloadAttachment}
                     />
                   )) : null}
-                  {supportsIntegrations && linkedTask ? (
+                  {linkedTask ? (
                     <Link className="linked-task" to={`/tasks/${linkedTask.id}`}>
                       <CheckCircle2 size={19} aria-hidden="true" />
                       <span><strong>{linkedTask.title}</strong><small>{linkedOwner?.name ?? t('channel.formerStaff')} · {formatTaskDue(linkedTask.dueAt)} · {t('task.progress', { completed: completedItems, total: linkedTask.checklist.length })}</small></span>
                       <TaskStatusBadge status={linkedTask.status} />
                     </Link>
                   ) : null}
-                  {supportsIntegrations && message.meetingId ? <MeetingCard meeting={meetings.find((meeting) => meeting.id === message.meetingId)} response={meetingResponses.find((response) => response.meetingId === message.meetingId && response.userId === currentMemberId)?.status} organizerName={users.find((user) => user.id === meetings.find((meeting) => meeting.id === message.meetingId)?.organizerId)?.name} channelName={channels.find((item) => item.id === message.channelId)?.displayName} onRespond={(status) => respondToMeeting(message.meetingId!, status)} /> : null}
+                  {message.meetingId ? <MeetingCard meeting={meetings.find((meeting) => meeting.id === message.meetingId)} response={meetingResponses.find((response) => response.meetingId === message.meetingId && response.userId === currentMemberId)?.status} organizerName={users.find((user) => user.id === meetings.find((meeting) => meeting.id === message.meetingId)?.organizerId)?.name} channelName={channels.find((item) => item.id === message.channelId)?.displayName} onRespond={(status) => respondToMeeting(message.meetingId!, status)} /> : null}
                 </div>
               </article>
             </ContextMenu.Trigger>

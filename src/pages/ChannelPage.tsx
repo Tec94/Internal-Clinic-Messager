@@ -21,7 +21,8 @@ import { MessageThread } from '../components/MessageThread'
 import { TaskAssignmentDrawer } from '../components/TaskAssignmentDrawer'
 import { Button, ChannelGlyph, IconButton } from '../components/ui'
 import { FileUpload, type FileUploadItem } from '../components/ui/motion/file-upload'
-import { detectMeetingCandidate, inspectOperationalContent } from '../services/mockClinicService'
+import { detectMeetingCandidate } from '../services/meetingDetection'
+import { inspectOperationalContent } from '../services/patientInfoWarning'
 import { ACCEPTED_ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_FILES } from '../services/uploadAdapter'
 import { useClinic } from '../state/ClinicContext'
 import { useMessaging } from '../state/MessagingContext'
@@ -45,7 +46,6 @@ export function ChannelPage() {
     isLoading,
     error: messagingError,
     supportsAttachments,
-    supportsIntegrations,
     canSendMessage,
     uploadAttachments,
     sendMessage,
@@ -123,10 +123,6 @@ export function ChannelPage() {
   }
 
   const continueSend = async (body: string) => {
-    if (!supportsIntegrations) {
-      await sendPlainMessage(body)
-      return
-    }
     const candidate = detectMeetingCandidate(body, 'Asia/Ho_Chi_Minh')
     if (candidate) {
       pendingDraft.current = body
@@ -217,7 +213,7 @@ export function ChannelPage() {
   const finishMeetingCreate = async (
     input: Parameters<typeof createMeeting>[0],
   ) => {
-    if (!canSend || !supportsIntegrations) return
+    if (!canSend) return
     setSending(true)
     setComposerError('')
     try {
@@ -263,12 +259,12 @@ export function ChannelPage() {
             <button type="button" className="member-count" onClick={() => setMembersOpen(true)} aria-label={t('channel.viewMembers')}><UsersRound size={18} />{memberCount}</button>
             <IconButton aria-label={t('channel.channelInfo')} onClick={() => setMembersOpen(true)}><Info size={20} /></IconButton>
             <label className="channel-search"><Search size={17} /><span className="sr-only">{t('channel.searchPlaceholder')}</span><input placeholder={t('channel.searchPlaceholder')} /></label>
-            {supportsIntegrations ? <IconButton className={activePanel === 'tasks' ? 'is-active' : ''} aria-label={t('channel.openTasks')} aria-pressed={activePanel === 'tasks'} onClick={(event) => openPanel('tasks', event.currentTarget)}><ListChecks size={20} /></IconButton> : null}
-            {supportsIntegrations ? <IconButton className={activePanel === 'documents' ? 'is-active' : ''} aria-label={t('channel.openDocuments')} aria-pressed={activePanel === 'documents'} onClick={(event) => openPanel('documents', event.currentTarget)}><FileText size={20} /></IconButton> : null}
+            <IconButton className={activePanel === 'tasks' ? 'is-active' : ''} aria-label={t('channel.openTasks')} aria-pressed={activePanel === 'tasks'} onClick={(event) => openPanel('tasks', event.currentTarget)}><ListChecks size={20} /></IconButton>
+            <IconButton className={activePanel === 'documents' ? 'is-active' : ''} aria-label={t('channel.openDocuments')} aria-pressed={activePanel === 'documents'} onClick={(event) => openPanel('documents', event.currentTarget)}><FileText size={20} /></IconButton>
           </div>
         </header>
 
-        <div className="thread-scroll"><MessageThread channel={channel} onAssignTask={supportsIntegrations ? openTaskDrawer : undefined} /></div>
+        <div className="thread-scroll"><MessageThread channel={channel} onAssignTask={openTaskDrawer} /></div>
 
         <div className="composer-region">
           <form
@@ -312,12 +308,12 @@ export function ChannelPage() {
         </div>
       </section>
 
-      {supportsIntegrations && activePanel ? <IntegrationPanel channel={channel} initialTab={activePanel} onClose={closePanel} onTabChange={(panel) => setSearchParams({ panel })} onAssignTask={() => openTaskDrawer()} /> : null}
+      {activePanel ? <IntegrationPanel channel={channel} initialTab={activePanel} onClose={closePanel} onTabChange={(panel) => setSearchParams({ panel })} onAssignTask={() => openTaskDrawer()} /> : null}
 
-      {supportsIntegrations && meetingCandidate ? <MeetingConfirmationDialog key={meetingCandidate.joinUrl} channelId={channel.id} channelName={channel.displayName} body={pendingDraft.current} candidate={meetingCandidate} onCancel={() => setMeetingCandidate(null)} onSendPlain={() => { void sendPlainMessage(pendingDraft.current) }} onCreate={finishMeetingCreate} /> : null}
+      {meetingCandidate ? <MeetingConfirmationDialog key={meetingCandidate.joinUrl} channelId={channel.id} channelName={channel.displayName} body={pendingDraft.current} candidate={meetingCandidate} onCancel={() => setMeetingCandidate(null)} onSendPlain={() => { void sendPlainMessage(pendingDraft.current) }} onCreate={finishMeetingCreate} /> : null}
 
       <ChannelMembersDrawer channel={channel} open={membersOpen} onOpenChange={setMembersOpen} />
-      {supportsIntegrations ? <TaskAssignmentDrawer channel={channel} open={taskDrawerOpen} sourceMessageId={taskSourceMessageId} sourceText={taskSourceText} onOpenChange={closeTaskDrawer} /> : null}
+      <TaskAssignmentDrawer channel={channel} open={taskDrawerOpen} sourceMessageId={taskSourceMessageId} sourceText={taskSourceText} onOpenChange={closeTaskDrawer} />
 
       <Dialog.Root open={showWarning} onOpenChange={setShowWarning}>
         <Dialog.Portal>

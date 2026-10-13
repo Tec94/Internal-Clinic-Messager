@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectMeetingCandidate } from '../services/mockClinicService'
+import { detectMeetingCandidate } from '../services/meetingDetection'
 
 describe('meeting candidate detection', () => {
   it('parses a Vietnamese date and Google Meet link', () => {

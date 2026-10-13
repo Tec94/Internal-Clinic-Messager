@@ -52,8 +52,6 @@ interface MessagingContextValue {
   isLoading: boolean
   error: string | null
   supportsAttachments: boolean
-  supportsChannelCreation: boolean
-  supportsIntegrations: boolean
   canSendMessage: (channelId: string) => boolean
   uploadAttachments: (
     files: File[],
@@ -186,8 +184,6 @@ export function MessagingProvider({
         && (channelsQuery.isPending || membersQuery.isPending),
       error: error instanceof Error ? error.message : null,
       supportsAttachments: attachmentsEnabled,
-      supportsChannelCreation: true,
-      supportsIntegrations: true,
       canSendMessage: (channelId) => (
         productionChannels.find((channel) => channel.id === channelId)
           ?.canSend ?? false
@@ -397,8 +393,6 @@ function createPreviewValue(
     isLoading: false,
     error: null,
     supportsAttachments: true,
-    supportsChannelCreation: true,
-    supportsIntegrations: true,
     canSendMessage: clinic.canSendMessage,
     sendMessage: async (input) => clinic.sendMessage(input),
     uploadAttachments: (files, channelId) => clinic.uploadAttachments(

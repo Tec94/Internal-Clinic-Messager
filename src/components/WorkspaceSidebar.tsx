@@ -52,7 +52,6 @@ export function WorkspaceSidebar({
     isProduction,
     isLoading: messagingLoading,
     error: messagingError,
-    supportsChannelCreation,
   } = useMessaging()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'unread' | 'mentions' | 'urgent'>('all')
@@ -225,9 +224,9 @@ export function WorkspaceSidebar({
               ? <p>{t('common.noResults')}</p>
               : null}
           </div>
-          {supportsChannelCreation ? <div className="sidebar-create">
+          <div className="sidebar-create">
             <Button icon={<Plus size={18} />} onClick={onCreateChannel}>{t('sidebar.createChannel')}</Button>
-          </div> : null}
+          </div>
         </>
       )}
 

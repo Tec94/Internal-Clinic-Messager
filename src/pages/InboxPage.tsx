@@ -16,7 +16,6 @@ export function InboxPage() {
     isProduction,
     isLoading,
     error,
-    supportsChannelCreation,
   } = useMessaging()
   const { openCreateChannel } = useOutletContext<{ openCreateChannel: () => void }>()
   const recentChannels = channels
@@ -73,7 +72,7 @@ export function InboxPage() {
           <section className="quick-actions-section">
             <h2>{t('inbox.quickActions')}</h2>
             <div>
-              {supportsChannelCreation ? <Button icon={<Plus size={18} />} onClick={openCreateChannel}>{t('sidebar.createChannel')}</Button> : null}
+              <Button icon={<Plus size={18} />} onClick={openCreateChannel}>{t('sidebar.createChannel')}</Button>
               <Button icon={<SquareCheckBig size={18} />} onClick={() => navigate('/tasks')}>{t('inbox.createTask')}</Button>
               <Button icon={<FileUp size={18} />} onClick={() => navigate('/documents')}>{t('inbox.uploadFile')}</Button>
             </div>
