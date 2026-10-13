@@ -5,6 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../state/AuthContext'
 import { useClinic } from '../state/ClinicContext'
 import { useMessaging } from '../state/MessagingContext'
+import { hasOrganizationScope } from '../services/permissions'
 import type { Channel, ChannelType } from '../types/domain'
 import { AppSelect } from './AppSelect'
 import { Avatar, Button, ChannelGlyph, IconButton } from './ui'
@@ -73,7 +74,7 @@ export function WorkspaceSidebar({
 
   const visibleChannels = useMemo(() => {
     const allowed = channels.filter((channel) => {
-      const roleCanSeeAll = currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin'
+      const roleCanSeeAll = hasOrganizationScope(currentBinding)
       const isMember = channel.memberIds.includes(currentUser.id)
       const inLocation = currentLocationId === 'all' || channel.locationIds.includes(currentLocationId)
       const matchesQuery = `${channel.name} ${channel.displayName}`.toLowerCase().includes(query.toLowerCase())
@@ -94,7 +95,7 @@ export function WorkspaceSidebar({
     return allowed
   }, [
     channels,
-    currentBinding.role,
+    currentBinding,
     currentLocationId,
     currentUser.id,
     filter,
@@ -144,7 +145,7 @@ export function WorkspaceSidebar({
               value={currentLocationId}
               onValueChange={setCurrentLocationId}
               options={[
-                ...((currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin')
+                ...(hasOrganizationScope(currentBinding)
                   ? [{ value: 'all', label: t('common.allLocations') }]
                   : []),
                 ...availableLocations.map((item) => ({

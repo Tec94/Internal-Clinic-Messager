@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { ACCEPTED_ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_FILES } from '../services/uploadAdapter'
 import { useClinic } from '../state/ClinicContext'
 import { useMessaging } from '../state/MessagingContext'
+import { canAssignTaskTo, isManager } from '../services/permissions'
 import type { Channel, TaskRecurrence } from '../types/domain'
 import { AppSelect } from './AppSelect'
 import { Button, IconButton } from './ui'
@@ -63,19 +64,13 @@ export function TaskAssignmentDrawer({
   const { uploadAttachments } = useMessaging()
   const titleRef = useRef<HTMLInputElement>(null)
   const dueRef = useRef<HTMLInputElement>(null)
-  const canDelegate = ['owner', 'orgAdmin', 'locationManager', 'departmentLead'].includes(currentBinding.role)
+  const canDelegate = isManager(currentBinding)
   const memberUsers = useMemo(() => {
     const channelUsers = channel.memberIds
       .map((id) => users.find((user) => user.id === id))
       .filter(Boolean) as typeof users
-    if (!canDelegate) return channelUsers.filter((user) => user.id === currentUser.id)
-    if (currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') return channelUsers
-    return channelUsers.filter((user) => assignments.some((assignment) => {
-      if (assignment.userId !== user.id) return false
-      if (currentBinding.role === 'locationManager') return currentBinding.locationIds.includes(assignment.locationId)
-      return currentBinding.departmentIds.includes(assignment.departmentId)
-    }))
-  }, [assignments, canDelegate, channel.memberIds, currentBinding, currentUser.id, users])
+    return channelUsers.filter((user) => canAssignTaskTo(currentBinding, user.id, currentUser.id, assignments))
+  }, [assignments, channel.memberIds, currentBinding, currentUser.id, users])
   const tomorrow = useMemo(() => new Date(Date.now() + 24 * 60 * 60 * 1000), [])
   const starterTemplates = useMemo(() => [
     { id: 'opening', title: t('task.starter.openingTitle'), checklist: [t('task.starter.opening1'), t('task.starter.opening2'), t('task.starter.opening3')] },

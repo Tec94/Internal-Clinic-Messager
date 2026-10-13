@@ -17,6 +17,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AnnouncementDialog } from '../components/AnnouncementDialog'
 import { AppSelect } from '../components/AppSelect'
 import { Avatar, Button, StatusBadge } from '../components/ui'
+import { hasOrganizationScope } from '../services/permissions'
 import type { Permission, UserRole } from '../types/domain'
 import { useClinic } from '../state/ClinicContext'
 
@@ -240,7 +241,7 @@ function PeopleView() {
   } = useClinic()
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const visibleUsers = users.filter((user) => currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin' || assignments.some((assignment) => assignment.userId === user.id && currentBinding.locationIds.includes(assignment.locationId)))
+  const visibleUsers = users.filter((user) => hasOrganizationScope(currentBinding) || assignments.some((assignment) => assignment.userId === user.id && currentBinding.locationIds.includes(assignment.locationId)))
   const selectedAssignment = assignments.find(
     (assignment) => assignment.userId === editing && assignment.isPrimary,
   )

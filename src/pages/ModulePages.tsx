@@ -16,6 +16,7 @@ import { AppSelect } from '../components/AppSelect'
 import { NativeExternalLink } from '../components/NativeExternalLink'
 import { TaskStatusBadge } from '../components/TaskStatusBadge'
 import i18n from '../i18n'
+import { canAssignTaskTo, canSeeChannel, isManager } from '../services/permissions'
 import { allowedActions } from '../services/taskLifecycle'
 import { useClinic } from '../state/ClinicContext'
 import type { Meeting, Task, TaskEvent } from '../types/domain'
@@ -46,12 +47,7 @@ function useAccessibleChannels() {
   const { channels, currentBinding, currentLocationId, currentUser } = useClinic()
   return channels.filter((channel) => {
     const inLocation = currentLocationId === 'all' || channel.locationIds.includes(currentLocationId)
-    if (!inLocation) return false
-    if (currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') return true
-    const inAssignedLocation = channel.locationIds.some((locationId) => currentBinding.locationIds.includes(locationId))
-    if (currentBinding.role === 'locationManager') return inAssignedLocation
-    if (currentBinding.role === 'departmentLead') return inAssignedLocation && channel.departmentIds.some((departmentId) => currentBinding.departmentIds.includes(departmentId))
-    return channel.visibility === 'public' || channel.memberIds.includes(currentUser.id)
+    return inLocation && canSeeChannel(currentBinding, channel, currentUser.id)
   })
 }
 
@@ -65,7 +61,7 @@ export function TasksPage() {
     transitionTask, setTaskScheduleActive,
   } = useClinic()
   const channels = useAccessibleChannels()
-  const canViewScope = ['owner', 'orgAdmin', 'locationManager', 'departmentLead'].includes(currentBinding.role)
+  const canViewScope = isManager(currentBinding)
   const visible = tasks.filter((task) => channels.some((channel) => channel.id === task.channelId) && (
     task.ownerId === currentUser.id
     || task.createdById === currentUser.id
@@ -83,11 +79,7 @@ export function TasksPage() {
   const creator = users.find((user) => user.id === task.createdById)
   const schedule = task.scheduleId ? taskSchedules.find((item) => item.id === task.scheduleId) : undefined
   const allowed = allowedActions(task, { id: currentUser.id, role: currentBinding.role })
-  const eligibleOwners = channel.memberIds.map((id) => users.find((user) => user.id === id)).filter((user): user is (typeof users)[number] => Boolean(user)).filter((user) => {
-    if (currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') return true
-    if (!canViewScope) return user.id === currentUser.id
-    return assignments.some((assignment) => assignment.userId === user.id && (currentBinding.role === 'locationManager' ? currentBinding.locationIds.includes(assignment.locationId) : currentBinding.departmentIds.includes(assignment.departmentId)))
-  })
+  const eligibleOwners = channel.memberIds.map((id) => users.find((user) => user.id === id)).filter((user): user is (typeof users)[number] => Boolean(user)).filter((user) => canAssignTaskTo(currentBinding, user.id, currentUser.id, assignments))
   const setChecklistItem = (itemId: string, completed: boolean) => {
     const checklist = task.checklist.map((item) => item.id === itemId ? { ...item, completed } : item)
     updateTask(task.id, { checklist })

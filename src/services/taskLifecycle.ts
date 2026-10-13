@@ -1,4 +1,5 @@
 import type { Task, TaskStatus, TaskTransitionAction, UserRole } from '../types/domain'
+import { isManager } from './permissions'
 
 // Mirrors the task RPCs in supabase/migrations/20260803092157_add_task_delegation_work_agenda.sql.
 export type TaskLifecycleAction = TaskTransitionAction | 'accept' | 'decline' | 'check' | 'reassign'
@@ -12,8 +13,6 @@ type LifecycleTask = Pick<Task, 'status' | 'ownerId' | 'createdById' | 'collabor
 
 const active: TaskStatus[] = ['accepted', 'inProgress']
 const reasonRequired: TaskLifecycleAction[] = ['decline', 'block', 'reopen', 'cancel', 'reassign']
-// shortcut: SQL also limits location managers and department leads to their scope, the server enforces it.
-const managerRoles: UserRole[] = ['owner', 'orgAdmin', 'locationManager', 'departmentLead']
 
 const statusAfter = (task: LifecycleTask, action: TaskLifecycleAction): TaskStatus | null => {
   const completed = task.checklist.filter((item) => item.completed).length
@@ -39,7 +38,8 @@ export const nextStatus = (task: LifecycleTask, action: TaskLifecycleAction, rea
 
 export const allowedActions = (task: LifecycleTask, member: TaskMember): TaskLifecycleAction[] => {
   const isOwner = task.ownerId === member.id
-  const canManage = task.createdById === member.id || managerRoles.includes(member.role)
+  // shortcut: SQL also limits location managers and department leads to their scope, the server enforces it.
+  const canManage = task.createdById === member.id || isManager(member)
   const permitted: Record<TaskLifecycleAction, boolean> = {
     accept: isOwner,
     decline: isOwner,

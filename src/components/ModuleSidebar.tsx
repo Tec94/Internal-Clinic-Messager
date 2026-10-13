@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
+import { canSeeChannel, isManager } from '../services/permissions'
 import type { Task, TaskStatus } from '../types/domain'
 import { AppSelect } from './AppSelect'
 import { TaskStatusBadge } from './TaskStatusBadge'
@@ -44,14 +45,8 @@ export function ModuleSidebar({ mode, onSelect }: { mode: ModuleSidebarMode; onS
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [visibleTaskCount, setVisibleTaskCount] = useState(50)
   const selectedDate = searchParams.get('date') ?? ''
-  const canViewScope = ['owner', 'orgAdmin', 'locationManager', 'departmentLead'].includes(currentBinding.role)
-  const accessibleChannelIds = useMemo(() => new Set(channels.filter((channel) => {
-    if (currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') return true
-    const inAssignedLocation = channel.locationIds.some((locationId) => currentBinding.locationIds.includes(locationId))
-    if (currentBinding.role === 'locationManager') return inAssignedLocation
-    if (currentBinding.role === 'departmentLead') return inAssignedLocation && channel.departmentIds.some((departmentId) => currentBinding.departmentIds.includes(departmentId))
-    return channel.visibility === 'public' || channel.memberIds.includes(currentUser.id)
-  }).map((channel) => channel.id)), [channels, currentBinding, currentUser.id])
+  const canViewScope = isManager(currentBinding)
+  const accessibleChannelIds = useMemo(() => new Set(channels.filter((channel) => canSeeChannel(currentBinding, channel, currentUser.id)).map((channel) => channel.id)), [channels, currentBinding, currentUser.id])
   const normalized = query.trim().toLocaleLowerCase(i18n.language)
 
   useEffect(() => { setVisibleTaskCount(50) }, [departmentFilter, normalized, ownerFilter, selectedDate, statusFilter, taskView])
