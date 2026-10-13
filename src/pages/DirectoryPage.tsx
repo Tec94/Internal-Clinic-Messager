@@ -9,8 +9,8 @@ export function DirectoryPage() {
   const navigate = useNavigate()
   const { users, currentUser, assignments, locations, departments, roleBindings, ensureDirectChannel } = useClinic()
 
-  const openDirectMessage = (userId: string) => {
-    const channel = ensureDirectChannel(userId)
+  const openDirectMessage = async (userId: string) => {
+    const channel = await ensureDirectChannel(userId)
     if (channel) navigate(`/channels/${channel.id}`)
   }
 

@@ -1,4 +1,5 @@
 import { supabase } from '../utils/supabase'
+import { directChannelTitle } from './directChannel'
 import type {
   AccessRequest,
   Announcement,
@@ -98,6 +99,10 @@ export interface SupabaseClinicRepository {
   createChannel: (
     scope: RepositoryScope,
     input: CreateChannelInput,
+  ) => Promise<string>
+  ensureDirectChannel: (
+    scope: RepositoryScope,
+    targetMemberId: string,
   ) => Promise<string>
   createTask: (
     scope: RepositoryScope,
@@ -731,7 +736,15 @@ export function createSupabaseClinicRepository(
         channels: (channelsResult.data ?? []).map((channel) => ({
           id: channel.id,
           name: channel.name,
-          displayName: channel.display_name,
+          displayName: channel.type === 'direct'
+            ? directChannelTitle(
+                activeMembershipRows
+                  .filter((membership) => membership.channel_id === channel.id)
+                  .map((membership) => membership.member_id),
+                scope.memberId,
+                (memberId) => users.find((user) => user.id === memberId)?.name,
+              ) ?? channel.display_name
+            : channel.display_name,
           purpose: channel.purpose,
           type: channel.type,
           visibility: channel.visibility,
@@ -1106,6 +1119,17 @@ export function createSupabaseClinicRepository(
         })
         .single()
       if (error) throw new Error(`Could not create the channel: ${error.message}`)
+      return (data as { id: string }).id
+    },
+
+    async ensureDirectChannel(scope, targetMemberId) {
+      const { data, error } = await client
+        .rpc('ensure_direct_channel', {
+          target_organization_id: scope.organizationId,
+          target_member_id: targetMemberId,
+        })
+        .single()
+      if (error) throw new Error(`Could not open the direct message: ${error.message}`)
       return (data as { id: string }).id
     },
 

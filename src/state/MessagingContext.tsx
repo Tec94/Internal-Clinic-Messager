@@ -26,6 +26,7 @@ import {
   formatBytes,
   type AttachmentRepository,
 } from '../services/attachmentRepository'
+import { directChannelTitle } from '../services/directChannel'
 import { createSupabaseMessagingRepository } from '../services/supabaseMessagingRepository'
 import { validateUploadFiles } from '../services/uploadAdapter'
 import type {
@@ -143,13 +144,22 @@ export function MessagingProvider({
     enabled: productionEnabled,
   })
 
-  const productionChannels = useMemo(
-    () => (channelsQuery.data ?? []).map(mapChannel),
-    [channelsQuery.data],
-  )
   const productionMembers = useMemo(
     () => (membersQuery.data ?? []).map(mapMember),
     [membersQuery.data],
+  )
+  const productionChannels = useMemo(
+    () => (channelsQuery.data ?? []).map((channel) => {
+      const mapped = mapChannel(channel)
+      if (channel.type !== 'direct' || !membership) return mapped
+      const title = directChannelTitle(
+        channel.memberIds,
+        membership.id,
+        (memberId) => productionMembers.find((member) => member.memberId === memberId)?.fullName,
+      )
+      return title ? { ...mapped, displayName: title } : mapped
+    }),
+    [channelsQuery.data, membership, productionMembers],
   )
   const appendToMessageCache = useCallback((message: MessagingMessage) => {
     if (!membership) return

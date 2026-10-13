@@ -90,8 +90,8 @@ export function ModuleSidebar({ mode, onSelect }: { mode: ModuleSidebarMode; onS
   const meetingMarkers = acceptedMeetings.map((meeting) => ({ at: meeting.startsAt, kind: 'meeting' as const }))
   const taskGroups = groupTasks(taskItems, t, canViewScope && taskView !== 'mine')
 
-  const openDirectMessage = (userId: string) => {
-    const channel = ensureDirectChannel(userId)
+  const openDirectMessage = async (userId: string) => {
+    const channel = await ensureDirectChannel(userId)
     if (!channel) return
     navigate(`/channels/${channel.id}`)
     onSelect()

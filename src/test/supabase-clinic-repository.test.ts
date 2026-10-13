@@ -2,6 +2,33 @@ import { describe, expect, it, vi } from 'vitest'
 import { createSupabaseClinicRepository } from '../services/supabaseClinicRepository'
 import { supabase } from '../utils/supabase'
 
+describe('Supabase clinic direct messages', () => {
+  it('finds or creates the direct message through the scoped RPC', async () => {
+    const single = vi.fn().mockResolvedValue({ data: { id: 'dm-1' }, error: null })
+    const rpc = vi.fn(() => ({ single }))
+    const repository = createSupabaseClinicRepository({ rpc } as unknown as typeof supabase)
+
+    await expect(repository.ensureDirectChannel(
+      { organizationId: 'org-1', memberId: 'member-1' },
+      'member-2',
+    )).resolves.toBe('dm-1')
+    expect(rpc).toHaveBeenCalledWith('ensure_direct_channel', {
+      target_organization_id: 'org-1',
+      target_member_id: 'member-2',
+    })
+  })
+
+  it('surfaces a rejected participant', async () => {
+    const single = vi.fn().mockResolvedValue({ data: null, error: { message: 'The direct message participant is invalid.' } })
+    const repository = createSupabaseClinicRepository({ rpc: () => ({ single }) } as unknown as typeof supabase)
+
+    await expect(repository.ensureDirectChannel(
+      { organizationId: 'org-1', memberId: 'member-1' },
+      'member-1',
+    )).rejects.toThrow('participant is invalid')
+  })
+})
+
 describe('Supabase clinic task repository', () => {
   it('coalesces overlapping refreshes and returns the newer snapshot to every caller', async () => {
     const harness = createSnapshotHarness()

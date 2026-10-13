@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { QueryClient, useQuery } from '@tanstack/react-query'
+import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query'
 import {
   announcements as seedAnnouncements,
   accessRequests as seedAccessRequests,
@@ -91,7 +91,7 @@ export interface ClinicContextValue {
   hasPermission: (permission: Permission) => boolean
   createChannel: (input: CreateChannelInput) => Channel | Promise<Channel>
   canSendMessage: (channelId: string) => boolean
-  ensureDirectChannel: (targetUserId: string) => Channel | null
+  ensureDirectChannel: (targetUserId: string) => Channel | null | Promise<Channel | null>
   sendMessage: (input: SendMessageInput) => Message | null
   createTask: (input: CreateTaskInput) => Task | Promise<Task>
   updateTask: (
@@ -155,6 +155,7 @@ export function ClinicProvider({
 }: PropsWithChildren<{ authEnabled?: boolean }>) {
   const auth = useOptionalAuth()
   const repository = useMemo(() => createSupabaseClinicRepository(), [])
+  const appQueryClient = useContext(QueryClientContext)
   const productionEnabled = (
     authEnabled
     && auth?.status === 'active'
@@ -699,7 +700,16 @@ export function ClinicProvider({
           && membership.userId === auth.membership!.id
         ),
       ),
-      ensureDirectChannel: () => null,
+      ensureDirectChannel: async (targetUserId) => {
+        if (targetUserId === auth.membership!.id) return null
+        const id = await repository.ensureDirectChannel(scope, targetUserId)
+        // Chat reads channels from the messaging query, so refresh both sources.
+        const [refreshed] = await Promise.all([
+          snapshotQuery.refetch(),
+          appQueryClient?.refetchQueries({ queryKey: ['messaging', 'channels'] }),
+        ])
+        return refreshed.data?.channels.find((item) => item.id === id) ?? null
+      },
       sendMessage: () => null,
       createTask: async (input) => {
         const id = await repository.createTask(scope, input)
