@@ -19,6 +19,7 @@ import i18n from '../i18n'
 import { canAssignTaskTo, canSeeChannel, isManager } from '../services/permissions'
 import { allowedActions } from '../services/taskLifecycle'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
 import type { Meeting, Task, TaskEvent } from '../types/domain'
 import { Avatar, Button, StatusBadge } from '../components/ui'
 import { Checkbox } from '../components/ui/motion/checkbox'
@@ -44,7 +45,8 @@ function formatAgendaDate(value: string) {
 }
 
 function useAccessibleChannels() {
-  const { channels, currentBinding, currentLocationId, currentUser } = useClinic()
+  const { currentBinding, currentLocationId, currentUser } = useClinic()
+  const { channels } = useMessaging()
   return channels.filter((channel) => {
     const inLocation = currentLocationId === 'all' || channel.locationIds.includes(currentLocationId)
     return inLocation && canSeeChannel(currentBinding, channel, currentUser.id)
@@ -136,7 +138,8 @@ function WorkAgenda({ tasks, meetings, selectedDate }: { tasks: Task[]; meetings
 
 function AgendaTaskRow({ task, selectedDate = '' }: { task: Task; selectedDate?: string }) {
   const { t } = useTranslation()
-  const { users, channels } = useClinic()
+  const { users } = useClinic()
+  const { channels } = useMessaging()
   const owner = users.find((user) => user.id === task.ownerId)
   const channel = channels.find((item) => item.id === task.channelId)
   const due = formatAgendaDate(task.dueAt)
@@ -145,7 +148,8 @@ function AgendaTaskRow({ task, selectedDate = '' }: { task: Task; selectedDate?:
 
 function AgendaMeetingRow({ meeting }: { meeting: Meeting }) {
   const { t } = useTranslation()
-  const { users, channels } = useClinic()
+  const { users } = useClinic()
+  const { channels } = useMessaging()
   const organizer = users.find((user) => user.id === meeting.organizerId)
   const channel = channels.find((item) => item.id === meeting.channelId)
   const starts = formatAgendaDate(meeting.startsAt)
@@ -244,7 +248,8 @@ export function DocumentsPage() {
 export function MeetingsPage() {
   const { meetingId } = useParams()
   const { t } = useTranslation()
-  const { meetings, meetingResponses, currentUser, channels, users } = useClinic()
+  const { meetings, meetingResponses, currentUser, users } = useClinic()
+  const { channels } = useMessaging()
   const accepted = meetings.filter((meeting) => {
     if (meeting.organizerId === currentUser.id) return true
     return meetingResponses.some((response) => response.meetingId === meeting.id && response.userId === currentUser.id && response.status === 'accepted')
@@ -266,7 +271,8 @@ export function MeetingsPage() {
 
 function MeetingDetail({ meeting }: { meeting: Meeting }) {
   const { t } = useTranslation()
-  const { channels, users } = useClinic()
+  const { users } = useClinic()
+  const { channels } = useMessaging()
   const channel = channels.find((item) => item.id === meeting.channelId)
   const organizer = users.find((item) => item.id === meeting.organizerId)
   return <section className="meeting-detail"><Video size={24} /><div><span>{t(`meeting.${meeting.provider}`)}</span><h2>{meeting.title}</h2><p className="tabular-nums">{formatDate(meeting.startsAt)}–{formatDate(meeting.endsAt, { hour: 'numeric', minute: '2-digit' })}</p><small>{organizer?.name} · {channel?.displayName} · {meeting.timezone}</small><NativeExternalLink className="meeting-detail__url" href={meeting.joinUrl}>{formatMeetingUrl(meeting.joinUrl)}</NativeExternalLink></div><NativeExternalLink className="button button--primary" href={meeting.joinUrl}>{t('meeting.join')}</NativeExternalLink></section>

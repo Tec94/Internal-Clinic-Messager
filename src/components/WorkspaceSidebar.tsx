@@ -126,9 +126,9 @@ export function WorkspaceSidebar({
   ]
 
   const openDirectMessage = async (userId: string) => {
-    const channel = await ensureDirectChannel(userId)
-    if (!channel) return
-    navigate(`/channels/${channel.id}`)
+    const channelId = await ensureDirectChannel(userId)
+    if (!channelId) return
+    navigate(`/channels/${channelId}`)
     onClose()
   }
 

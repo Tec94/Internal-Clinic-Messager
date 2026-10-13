@@ -25,6 +25,7 @@ import {
   tasks as seedTasks,
   users,
 } from '../data/seed'
+import type { MessagingChannel } from '../services/messagingRepository'
 import { canSendMessageInChannel, hasPermission } from '../services/permissions'
 import { createSupabaseClinicRepository } from '../services/supabaseClinicRepository'
 import { allowedActions, nextStatus } from '../services/taskLifecycle'
@@ -71,6 +72,7 @@ export interface ClinicContextValue {
   users: typeof users
   assignments: typeof assignments
   roleBindings: typeof roleBindings
+  // Preview only. Read Channels through useMessaging(), which owns them in production.
   channels: Channel[]
   memberships: ChannelMembership[]
   messages: Message[]
@@ -90,9 +92,8 @@ export interface ClinicContextValue {
   setCurrentUserId: (userId: string) => void
   setCurrentLocationId: (locationId: string) => void
   hasPermission: (permission: Permission) => boolean
-  createChannel: (input: CreateChannelInput) => Channel | Promise<Channel>
-  canSendMessage: (channelId: string) => boolean
-  ensureDirectChannel: (targetUserId: string) => Channel | null | Promise<Channel | null>
+  createChannel: (input: CreateChannelInput) => string | Promise<string>
+  ensureDirectChannel: (targetUserId: string) => string | null | Promise<string | null>
   sendMessage: (input: SendMessageInput) => Message | null
   createTask: (input: CreateTaskInput) => Task | Promise<Task>
   updateTask: (
@@ -280,7 +281,7 @@ export function ClinicProvider({
         expiresAt: newChannel.archiveAt,
       })),
     ])
-    return newChannel
+    return newChannel.id
   }
 
   const canSendMessage = (channelId: string) =>
@@ -297,7 +298,7 @@ export function ClinicProvider({
     const participantIds = [currentUser.id, targetUserId].sort()
     const directId = `dm-${participantIds.join('-')}`
     const existing = channels.find((channel) => channel.id === directId)
-    if (existing) return existing
+    if (existing) return existing.id
     const targetAssignment = assignments.find((assignment) => assignment.userId === targetUserId && assignment.isPrimary)
     const currentAssignment = assignments.find((assignment) => assignment.userId === currentUser.id && assignment.isPrimary)
     const locationIds = [currentAssignment?.locationId, targetAssignment?.locationId].filter(
@@ -332,7 +333,7 @@ export function ClinicProvider({
         joinedAt: createdAt,
       })),
     ])
-    return newChannel
+    return newChannel.id
   }
 
   const sendMessage = (input: SendMessageInput) => {
@@ -615,7 +616,6 @@ export function ClinicProvider({
     setCurrentLocationId,
     hasPermission: (permission) => hasPermission(currentBinding, permission),
     createChannel,
-    canSendMessage,
     ensureDirectChannel,
     sendMessage,
     createTask,
@@ -679,8 +679,21 @@ export function ClinicProvider({
       organizationId: auth.membership.organizationId,
       memberId: auth.membership.id,
     }
+    // Chat owns production Channels (MessagingContext); refresh that query so
+    // a new Channel opens at once. The snapshot refresh picks up the Audit event.
+    const refreshChannels = async (id: string) => {
+      await Promise.all([
+        snapshotQuery.refetch(),
+        appQueryClient?.refetchQueries({ queryKey: ['messaging', 'channels'] }),
+      ])
+      return appQueryClient
+        ?.getQueryData<MessagingChannel[]>(['messaging', 'channels', scope.organizationId, scope.memberId])
+        ?.some((channel) => channel.id === id) ?? false
+    }
     const productionValue: ClinicContextValue = {
       ...snapshot,
+      channels: [],
+      memberships: [],
       messages: [],
       currentUser: productionCurrentUser,
       currentBinding: productionCurrentBinding,
@@ -693,26 +706,15 @@ export function ClinicProvider({
       ),
       createChannel: async (input) => {
         const id = await repository.createChannel(scope, input)
-        const refreshed = await snapshotQuery.refetch()
-        const channel = refreshed.data?.channels.find((item) => item.id === id)
-        if (!channel) throw new Error('The created channel could not be loaded.')
-        return channel
+        if (!await refreshChannels(id)) {
+          throw new Error('The created channel could not be loaded.')
+        }
+        return id
       },
-      canSendMessage: (channelId) => snapshot.memberships.some(
-        (membership) => (
-          membership.channelId === channelId
-          && membership.userId === auth.membership!.id
-        ),
-      ),
       ensureDirectChannel: async (targetUserId) => {
         if (targetUserId === auth.membership!.id) return null
         const id = await repository.ensureDirectChannel(scope, targetUserId)
-        // Chat reads channels from the messaging query, so refresh both sources.
-        const [refreshed] = await Promise.all([
-          snapshotQuery.refetch(),
-          appQueryClient?.refetchQueries({ queryKey: ['messaging', 'channels'] }),
-        ])
-        return refreshed.data?.channels.find((item) => item.id === id) ?? null
+        return await refreshChannels(id) ? id : null
       },
       sendMessage: () => null,
       createTask: async (input) => {

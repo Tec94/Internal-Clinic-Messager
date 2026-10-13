@@ -6,6 +6,7 @@ import {
   resolveAttachmentMimeType,
   validateUploadFiles,
 } from './uploadAdapter'
+import { toAttachment } from './rowMappers'
 
 const QUARANTINE_BUCKET = 'operational-attachments-quarantine'
 const TUS_CHUNK_SIZE = 6 * 1024 * 1024
@@ -214,25 +215,5 @@ function mapAttachment(
   if (row.size_bytes > MAX_ATTACHMENT_SIZE_BYTES) {
     throw new Error('The backend returned an oversized attachment.')
   }
-  return {
-    id: row.id,
-    name: row.original_name,
-    type: row.mime_type,
-    sizeLabel: formatBytes(row.size_bytes),
-    sizeBytes: row.size_bytes,
-    uploadedBy: row.uploader_member_id,
-    uploadedAt: row.created_at,
-    channelId: row.channel_id,
-    status: row.status,
-    scanStatus: row.scan_status,
-    objectPath: row.object_path,
-  }
-}
-
-export function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(
-    bytes >= 10 * 1024 * 1024 ? 0 : 1,
-  )} MB`
+  return { ...toAttachment(row), objectPath: row.object_path }
 }

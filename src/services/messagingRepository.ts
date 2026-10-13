@@ -1,3 +1,5 @@
+import type { Attachment } from '../types/domain'
+
 export interface MessagingChannel {
   id: string
   organizationId: string
@@ -45,20 +47,7 @@ export interface MessagingMessage {
   meetingId?: string
   createdAt: string
   attachmentIds: string[]
-  attachments: MessagingAttachment[]
-}
-
-export interface MessagingAttachment {
-  id: string
-  organizationId: string
-  channelId: string
-  uploaderMemberId: string
-  originalName: string
-  mimeType: string
-  sizeBytes: number
-  status: 'uploading' | 'available' | 'rejected' | 'failed'
-  scanStatus: 'pending' | 'bypassed_dev' | 'clean' | 'rejected' | 'failed'
-  createdAt: string
+  attachments: Attachment[]
 }
 
 export interface MessageCursor {

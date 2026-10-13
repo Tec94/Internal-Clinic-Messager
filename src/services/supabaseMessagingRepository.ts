@@ -2,13 +2,13 @@ import { supabase } from '../utils/supabase'
 import type {
   MessageCursor,
   MessagePage,
-  MessagingAttachment,
   MessagingChannel,
   MessagingMember,
   MessagingMessage,
   MessagingRepository,
   SendMessageCommand,
 } from './messagingRepository'
+import { toAttachment, type AttachmentRow } from './rowMappers'
 
 interface ChannelRow {
   id: string
@@ -64,19 +64,6 @@ interface MessageRow {
       | AttachmentRow[]
       | null
   }> | null
-}
-
-interface AttachmentRow {
-  id: string
-  organization_id: string
-  channel_id: string
-  uploader_member_id: string
-  original_name: string
-  mime_type: string
-  size_bytes: number
-  status: MessagingAttachment['status']
-  scan_status: MessagingAttachment['scanStatus']
-  created_at: string
 }
 
 const messageSelect = `
@@ -308,7 +295,7 @@ function mapMessage(row: MessageRow): MessagingMessage {
     const attachment = Array.isArray(link.attachment)
       ? link.attachment[0]
       : link.attachment
-    return attachment ? [mapAttachment(attachment)] : []
+    return attachment ? [toAttachment(attachment)] : []
   })
   return {
     id: row.id,
@@ -334,21 +321,6 @@ async function loadMessage(client: typeof supabase, messageId: string) {
     .single()
   if (error) throw new Error(`Could not load sent message: ${error.message}`)
   return mapMessage(data as MessageRow)
-}
-
-function mapAttachment(row: AttachmentRow): MessagingAttachment {
-  return {
-    id: row.id,
-    organizationId: row.organization_id,
-    channelId: row.channel_id,
-    uploaderMemberId: row.uploader_member_id,
-    originalName: row.original_name,
-    mimeType: row.mime_type,
-    sizeBytes: row.size_bytes,
-    status: row.status,
-    scanStatus: row.scan_status,
-    createdAt: row.created_at,
-  }
 }
 
 function isActiveMembership(

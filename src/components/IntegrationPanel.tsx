@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { allowedActions } from '../services/taskLifecycle'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
 import type { Channel, Task } from '../types/domain'
 import { Avatar, Button, IconButton } from './ui'
 import { Checkbox } from './ui/motion/checkbox'
@@ -11,7 +12,8 @@ import { TaskStatusBadge } from './TaskStatusBadge'
 
 export function IntegrationPanel({ channel, initialTab, onClose, onTabChange, onAssignTask }: { channel: Channel; initialTab: 'tasks' | 'documents'; onClose: () => void; onTabChange: (tab: 'tasks' | 'documents') => void; onAssignTask?: () => void }) {
   const { t } = useTranslation()
-  const { users, currentUser, tasks, attachments, channels } = useClinic()
+  const { users, currentUser, tasks, attachments } = useClinic()
+  const { channels } = useMessaging()
   const panelRef = useRef<HTMLElement>(null)
   const [overlay, setOverlay] = useState(() => window.matchMedia('(max-width: 1180px)').matches)
   const [visible, setVisible] = useState(false)

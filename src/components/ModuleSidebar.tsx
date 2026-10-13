@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
 import { canSeeChannel, isManager } from '../services/permissions'
 import type { Task, TaskStatus } from '../types/domain'
 import { AppSelect } from './AppSelect'
@@ -35,9 +36,10 @@ export function ModuleSidebar({ mode, onSelect }: { mode: ModuleSidebarMode; onS
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const {
-    currentUser, currentBinding, currentLocationId, channels, tasks, attachments,
+    currentUser, currentBinding, currentLocationId, tasks, attachments,
     meetings, meetingResponses, users, departments, assignments, ensureDirectChannel,
   } = useClinic()
+  const { channels } = useMessaging()
   const [query, setQuery] = useState('')
   const [taskView, setTaskView] = useState<TaskView>('mine')
   const [statusFilter, setStatusFilter] = useState<'' | TaskStatus>('')
@@ -86,9 +88,9 @@ export function ModuleSidebar({ mode, onSelect }: { mode: ModuleSidebarMode; onS
   const taskGroups = groupTasks(taskItems, t, canViewScope && taskView !== 'mine')
 
   const openDirectMessage = async (userId: string) => {
-    const channel = await ensureDirectChannel(userId)
-    if (!channel) return
-    navigate(`/channels/${channel.id}`)
+    const channelId = await ensureDirectChannel(userId)
+    if (!channelId) return
+    navigate(`/channels/${channelId}`)
     onSelect()
   }
   const selectDate = (nextDate: string) => navigate(nextDate ? `/tasks?date=${nextDate}` : '/tasks')

@@ -1,13 +1,11 @@
 import { supabase } from '../utils/supabase'
-import { directChannelTitle } from './directChannel'
+import { initials, toAttachment } from './rowMappers'
 import type {
   AccessRequest,
   Announcement,
   Assignment,
   Attachment,
   AuditEvent,
-  Channel,
-  ChannelMembership,
   CreateAnnouncementInput,
   CreateChannelInput,
   CreateMeetingInput,
@@ -41,8 +39,6 @@ export interface ClinicSnapshot {
   users: User[]
   assignments: Assignment[]
   roleBindings: RoleBinding[]
-  channels: Channel[]
-  memberships: ChannelMembership[]
   tasks: Task[]
   taskEvents: TaskEvent[]
   taskTemplates: TaskTemplate[]
@@ -294,10 +290,6 @@ export function createSupabaseClinicRepository(
         bindingsResult,
         bindingLocationsResult,
         bindingDepartmentsResult,
-        channelsResult,
-        channelLocationsResult,
-        channelDepartmentsResult,
-        membershipsResult,
         tasksResult,
         collaboratorsResult,
         checklistResult,
@@ -375,43 +367,6 @@ export function createSupabaseClinicRepository(
         client
           .from('role_binding_departments')
           .select('role_binding_id, department_id')
-          .eq('organization_id', scope.organizationId),
-        client
-          .from('channels')
-          .select(`
-            id,
-            name,
-            display_name,
-            purpose,
-            type,
-            visibility,
-            owner_member_id,
-            is_urgent,
-            archive_at
-          `)
-          .eq('organization_id', scope.organizationId)
-          .is('archived_at', null)
-          .order('updated_at', { ascending: false }),
-        client
-          .from('channel_locations')
-          .select('channel_id, location_id')
-          .eq('organization_id', scope.organizationId),
-        client
-          .from('channel_departments')
-          .select('channel_id, department_id')
-          .eq('organization_id', scope.organizationId),
-        client
-          .from('channel_memberships')
-          .select(`
-            id,
-            channel_id,
-            member_id,
-            source,
-            can_send,
-            starts_at,
-            expires_at,
-            archived_at
-          `)
           .eq('organization_id', scope.organizationId),
         client
           .from('tasks')
@@ -582,10 +537,6 @@ export function createSupabaseClinicRepository(
         bindingsResult,
         bindingLocationsResult,
         bindingDepartmentsResult,
-        channelsResult,
-        channelLocationsResult,
-        channelDepartmentsResult,
-        membershipsResult,
         tasksResult,
         collaboratorsResult,
         checklistResult,
@@ -663,21 +614,7 @@ export function createSupabaseClinicRepository(
         }]
       })
 
-      const activeMembershipRows = (membershipsResult.data ?? []).filter(
-        isActiveChannelMembership,
-      )
-      const attachments = (attachmentsResult.data ?? []).map((attachment) => ({
-        id: attachment.id,
-        name: attachment.original_name,
-        type: attachment.mime_type,
-        sizeLabel: formatBytes(attachment.size_bytes),
-        sizeBytes: attachment.size_bytes,
-        uploadedBy: attachment.uploader_member_id,
-        uploadedAt: attachment.created_at,
-        channelId: attachment.channel_id,
-        status: attachment.status,
-        scanStatus: attachment.scan_status,
-      } satisfies Attachment))
+      const attachments = (attachmentsResult.data ?? []).map(toAttachment)
 
       return {
         organization: {
@@ -733,43 +670,6 @@ export function createSupabaseClinicRepository(
           endsAt: assignment.ends_at ?? undefined,
         })),
         roleBindings,
-        channels: (channelsResult.data ?? []).map((channel) => ({
-          id: channel.id,
-          name: channel.name,
-          displayName: channel.type === 'direct'
-            ? directChannelTitle(
-                activeMembershipRows
-                  .filter((membership) => membership.channel_id === channel.id)
-                  .map((membership) => membership.member_id),
-                scope.memberId,
-                (memberId) => users.find((user) => user.id === memberId)?.name,
-              ) ?? channel.display_name
-            : channel.display_name,
-          purpose: channel.purpose,
-          type: channel.type,
-          visibility: channel.visibility,
-          locationIds: (channelLocationsResult.data ?? [])
-            .filter((row) => row.channel_id === channel.id)
-            .map((row) => row.location_id),
-          departmentIds: (channelDepartmentsResult.data ?? [])
-            .filter((row) => row.channel_id === channel.id)
-            .map((row) => row.department_id),
-          ownerId: channel.owner_member_id,
-          memberIds: activeMembershipRows
-            .filter((membership) => membership.channel_id === channel.id)
-            .map((membership) => membership.member_id),
-          unreadCount: 0,
-          isUrgent: channel.is_urgent,
-          archiveAt: channel.archive_at ?? undefined,
-        })),
-        memberships: activeMembershipRows.map((membership) => ({
-          id: membership.id,
-          channelId: membership.channel_id,
-          userId: membership.member_id,
-          source: mapMembershipSource(membership.source),
-          joinedAt: membership.starts_at,
-          expiresAt: membership.expires_at ?? undefined,
-        })),
         tasks: (tasksResult.data ?? []).map((task) => ({
           id: task.id,
           title: task.title,
@@ -1454,42 +1354,6 @@ function localTimeForZone(value: string, timezone: string) {
   }).formatToParts(new Date(value))
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '00'
   return `${part('hour')}:${part('minute')}:${part('second')}`
-}
-
-function mapMembershipSource(
-  value: string,
-): ChannelMembership['source'] {
-  if (value === 'access_request') return 'accessRequest'
-  if (value === 'invitation') return 'invitation'
-  return 'policy'
-}
-
-function isActiveChannelMembership(row: {
-  archived_at: string | null
-  starts_at: string
-  expires_at: string | null
-}) {
-  const now = Date.now()
-  return (
-    row.archived_at === null
-    && Date.parse(row.starts_at) <= now
-    && (row.expires_at === null || Date.parse(row.expires_at) > now)
-  )
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0]?.toLocaleUpperCase())
-    .join('')
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function toDisplayName(name: string) {

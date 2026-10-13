@@ -23,10 +23,11 @@ import type {
 } from '../services/messagingRepository'
 import {
   createSupabaseAttachmentRepository,
-  formatBytes,
   type AttachmentRepository,
 } from '../services/attachmentRepository'
 import { directChannelTitle } from '../services/directChannel'
+import { canSendMessageInChannel } from '../services/permissions'
+import { initials } from '../services/rowMappers'
 import { createSupabaseMessagingRepository } from '../services/supabaseMessagingRepository'
 import { validateUploadFiles } from '../services/uploadAdapter'
 import type {
@@ -393,7 +394,11 @@ function createPreviewValue(
     isLoading: false,
     error: null,
     supportsAttachments: true,
-    canSendMessage: clinic.canSendMessage,
+    canSendMessage: (channelId) => canSendMessageInChannel(
+      clinic.currentBinding,
+      clinic.currentUser.id,
+      clinic.channels.find((item) => item.id === channelId),
+    ),
     sendMessage: async (input) => clinic.sendMessage(input),
     uploadAttachments: (files, channelId) => clinic.uploadAttachments(
       files,
@@ -433,12 +438,7 @@ function mapChannel(channel: MessagingChannel): Channel & { canSend: boolean } {
 function mapMember(member: MessagingMember): MessagingViewMember {
   return {
     ...member,
-    initials: member.fullName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(-2)
-      .map((part) => part[0]?.toLocaleUpperCase())
-      .join(''),
+    initials: initials(member.fullName),
     presence: 'offline',
   }
 }
@@ -455,17 +455,8 @@ function mapMessage(message: MessagingMessage): Message {
     meetingId: message.meetingId,
     attachmentIds: message.attachmentIds,
     attachments: message.attachments.map((attachment) => ({
-      id: attachment.id,
-      name: attachment.originalName,
-      type: attachment.mimeType,
-      sizeLabel: formatBytes(attachment.sizeBytes),
-      sizeBytes: attachment.sizeBytes,
-      uploadedBy: attachment.uploaderMemberId,
-      uploadedAt: attachment.createdAt,
-      channelId: attachment.channelId,
+      ...attachment,
       messageId: message.id,
-      status: attachment.status,
-      scanStatus: attachment.scanStatus,
     })),
   }
 }

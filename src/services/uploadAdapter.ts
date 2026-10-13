@@ -1,4 +1,5 @@
 import type { Attachment, UploadAttachmentAdapter, UploadTarget } from '../types/domain'
+import { formatBytes } from './rowMappers'
 
 export const ACCEPTED_ATTACHMENT_TYPES = [
   'application/pdf',
@@ -13,12 +14,6 @@ export const ACCEPTED_ATTACHMENT_TYPES = [
 export const ACCEPTED_ATTACHMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg']
 export const MAX_ATTACHMENT_FILES = 5
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`
-}
 
 function attachmentExtension(file: File) {
   return file.name.includes('.')

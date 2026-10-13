@@ -32,8 +32,8 @@ function DirectChannelProbe() {
   return (
     <div>
       <button type="button" onClick={async () => {
-        const channel = await ensureDirectChannel('user-manager')
-        setOpenedIds((items) => [...items, channel?.id ?? 'none'])
+        const channelId = await ensureDirectChannel('user-manager')
+        setOpenedIds((items) => [...items, channelId ?? 'none'])
       }}>Open manager DM</button>
       <output aria-label="direct-count">{directCount}</output>
       <output aria-label="opened-ids">{openedIds.join(',')}</output>

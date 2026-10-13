@@ -51,8 +51,9 @@ export function MessageThread({
   onAssignTask?: (messageId?: string, body?: string) => void
 }) {
   const { t } = useTranslation()
-  const { users, attachments, tasks, meetings, meetingResponses, respondToMeeting, channels } = useClinic()
+  const { users, attachments, tasks, meetings, meetingResponses, respondToMeeting } = useClinic()
   const {
+    channels,
     members,
     currentMemberId,
     isProduction,

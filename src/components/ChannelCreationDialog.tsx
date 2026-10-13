@@ -90,9 +90,9 @@ export function ChannelCreationDialog({
       setPolicyWarning(true)
       return
     }
-    const channel = await createChannel(input)
+    const channelId = await createChannel(input)
     onOpenChange(false)
-    navigate(`/channels/${channel.id}`)
+    navigate(`/channels/${channelId}`)
   }
 
   return (
