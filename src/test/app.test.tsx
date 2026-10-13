@@ -26,9 +26,9 @@ function renderApp(path: string) {
 }
 
 function DirectChannelProbe() {
-  const { channels, ensureDirectChannel } = useClinic()
+  const { preview, ensureDirectChannel } = useClinic()
   const [openedIds, setOpenedIds] = useState<string[]>([])
-  const directCount = channels.filter((channel) => channel.type === 'direct').length
+  const directCount = (preview?.channels ?? []).filter((channel) => channel.type === 'direct').length
   return (
     <div>
       <button type="button" onClick={async () => {
@@ -272,7 +272,11 @@ describe('clinic messenger application', () => {
 
   it('reuses an existing direct channel for repeated person opens', async () => {
     const user = userEvent.setup()
-    render(<ClinicProvider><DirectChannelProbe /></ClinicProvider>)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ClinicProvider><DirectChannelProbe /></ClinicProvider>
+      </QueryClientProvider>,
+    )
     await user.click(screen.getByRole('button', { name: 'Open manager DM' }))
     expect(screen.getByLabelText('direct-count')).toHaveTextContent('1')
     await user.click(screen.getByRole('button', { name: 'Open manager DM' }))

@@ -13,7 +13,6 @@ import type {
   Message,
   Organization,
   RoleBinding,
-  StaffingSnapshot,
   Task,
   User,
 } from '../types/domain'
@@ -136,19 +135,6 @@ export const meetingResponses: MeetingResponse[] = [
 export const announcements: Announcement[] = [
   { id: 'announcement-1', title: 'Lịch bảo trì hệ thống', body: 'Hệ thống xếp lịch sẽ tạm ngưng Chủ nhật từ 02:00 đến 04:00.', authorId: 'user-owner', audience: { organizationWide: true, locationIds: [], departmentIds: [] }, priority: 'standard', requireAcknowledgement: false, status: 'published', publishedAt: '2026-07-06T07:00:00+07:00', attachmentIds: [] },
   { id: 'announcement-2', title: 'Cập nhật hướng dẫn khách đến Cơ sở phía Đông', body: 'Xem hướng dẫn mới trước ca làm việc tiếp theo tại Cơ sở phía Đông.', authorId: 'user-manager', audience: { organizationWide: false, locationIds: ['loc-b'], departmentIds: [] }, priority: 'standard', requireAcknowledgement: true, status: 'published', publishedAt: '2026-07-05T12:00:00+07:00', attachmentIds: [] },
-]
-
-export const staffingSnapshots: StaffingSnapshot[] = [
-  { locationId: 'loc-a', capturedAt: '2026-07-06T08:30:00+07:00', scheduled: 12, required: 15, departmentCoverage: [
-    { departmentId: 'providers', scheduled: 3, required: 3 },
-    { departmentId: 'nursing', scheduled: 4, required: 5 },
-    { departmentId: 'front-desk', scheduled: 3, required: 4 },
-  ] },
-  { locationId: 'loc-b', capturedAt: '2026-07-06T08:30:00+07:00', scheduled: 8, required: 8, departmentCoverage: [
-    { departmentId: 'providers', scheduled: 2, required: 2 },
-    { departmentId: 'nursing', scheduled: 4, required: 4 },
-    { departmentId: 'front-desk', scheduled: 2, required: 2 },
-  ] },
 ]
 
 export const accessRequests: AccessRequest[] = [

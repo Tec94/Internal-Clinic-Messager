@@ -187,7 +187,7 @@ export function AppShell({
               open={createChannelOpen}
               onOpenChange={handleCreateChannelOpenChange}
             />
-            {!authEnabled ? <DeveloperRolePanel /> : null}
+            <DeveloperRolePanel />
             {!isNative ? <PwaStatus /> : null}
             {zaloBlocked ? <p className="sr-only" role="alert">{t('zalo.blocked')}</p> : null}
             <button type="button" className={`sidebar-scrim ${sidebarOpen ? 'is-visible' : ''}`} onClick={closeSidebar} aria-label={t('common.close')} />

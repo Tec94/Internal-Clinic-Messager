@@ -1,60 +1,17 @@
 import { supabase } from '../utils/supabase'
+import type { ClinicRepository, ClinicSnapshot, RepositoryScope } from './clinicRepository'
 import { initials, toAttachment } from './rowMappers'
 import type {
-  AccessRequest,
-  Announcement,
   Assignment,
-  Attachment,
-  AuditEvent,
-  CreateAnnouncementInput,
-  CreateChannelInput,
-  CreateMeetingInput,
-  CreateTaskInput,
-  Department,
-  Location,
-  Meeting,
-  MeetingResponse,
-  MeetingResponseStatus,
-  Organization,
   RoleBinding,
-  SaveLocationInput,
-  SaveMemberAssignmentInput,
-  SaveOrganizationSettingsInput,
   Task,
   TaskDetail,
   TaskEvent,
-  TaskSchedule,
   TaskStatus,
   TaskSummary,
-  TaskTemplate,
-  TaskTransitionAction,
   User,
   WorkAgendaItem,
 } from '../types/domain'
-
-export interface ClinicSnapshot {
-  organization: Organization
-  locations: Location[]
-  departments: Department[]
-  users: User[]
-  assignments: Assignment[]
-  roleBindings: RoleBinding[]
-  tasks: Task[]
-  taskEvents: TaskEvent[]
-  taskTemplates: TaskTemplate[]
-  taskSchedules: TaskSchedule[]
-  attachments: Attachment[]
-  meetings: Meeting[]
-  meetingResponses: MeetingResponse[]
-  announcements: Announcement[]
-  accessRequests: AccessRequest[]
-  auditEvents: AuditEvent[]
-}
-
-interface RepositoryScope {
-  organizationId: string
-  memberId: string
-}
 
 export interface TaskListFilters {
   search?: string
@@ -76,8 +33,7 @@ export interface WorkAgendaPage {
   nextCursor?: string
 }
 
-export interface SupabaseClinicRepository {
-  loadSnapshot: (scope: RepositoryScope) => Promise<ClinicSnapshot>
+export interface SupabaseClinicRepository extends ClinicRepository {
   listTasks: (
     scope: RepositoryScope,
     filters?: TaskListFilters,
@@ -92,78 +48,6 @@ export interface SupabaseClinicRepository {
     cursor?: string,
     limit?: number,
   ) => Promise<WorkAgendaPage>
-  createChannel: (
-    scope: RepositoryScope,
-    input: CreateChannelInput,
-  ) => Promise<string>
-  ensureDirectChannel: (
-    scope: RepositoryScope,
-    targetMemberId: string,
-  ) => Promise<string>
-  createTask: (
-    scope: RepositoryScope,
-    input: CreateTaskInput,
-  ) => Promise<string>
-  setTaskChecklistItem: (
-    scope: RepositoryScope,
-    taskId: string,
-    itemId: string,
-    completed: boolean,
-  ) => Promise<void>
-  respondToTask: (
-    scope: RepositoryScope,
-    taskId: string,
-    response: 'accept' | 'decline',
-    reason?: string,
-  ) => Promise<void>
-  transitionTask: (
-    scope: RepositoryScope,
-    taskId: string,
-    action: TaskTransitionAction,
-    reason?: string,
-    reopenItemId?: string,
-  ) => Promise<void>
-  reassignTask: (
-    scope: RepositoryScope,
-    taskId: string,
-    ownerId: string,
-    reason: string,
-  ) => Promise<void>
-  setTaskScheduleActive: (
-    scope: RepositoryScope,
-    scheduleId: string,
-    active: boolean,
-  ) => Promise<void>
-  createMeeting: (
-    scope: RepositoryScope,
-    input: CreateMeetingInput,
-  ) => Promise<string>
-  respondToMeeting: (
-    scope: RepositoryScope,
-    meetingId: string,
-    status: MeetingResponseStatus,
-  ) => Promise<void>
-  createAnnouncement: (
-    scope: RepositoryScope,
-    input: CreateAnnouncementInput,
-  ) => Promise<string>
-  saveOrganizationSettings: (
-    scope: RepositoryScope,
-    input: SaveOrganizationSettingsInput,
-  ) => Promise<void>
-  saveLocation: (
-    scope: RepositoryScope,
-    input: SaveLocationInput,
-  ) => Promise<string>
-  saveMemberAssignment: (
-    scope: RepositoryScope,
-    input: SaveMemberAssignmentInput,
-  ) => Promise<void>
-  resolveAccessRequest: (
-    scope: RepositoryScope,
-    requestId: string,
-    status: 'approved' | 'denied',
-  ) => Promise<void>
 }
 
 const taskSummaryColumns = `
@@ -279,6 +163,16 @@ export function createSupabaseClinicRepository(
   client: typeof supabase = supabase,
 ): SupabaseClinicRepository {
   return {
+    subscribe: (scope, onChange) => {
+      const filter = `organization_id=eq.${scope.organizationId}`
+      const channel = client
+        .channel(`task-work-agenda:${scope.organizationId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter }, onChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_checklist_items', filter }, onChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_events', filter }, onChange)
+        .subscribe()
+      return () => { void client.removeChannel(channel) }
+    },
     loadSnapshot: coalesceSnapshotRefreshes(async (scope) => {
       const [
         organizationResult,

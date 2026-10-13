@@ -341,7 +341,7 @@ export function useMessagingThread(channelId: string): MessagingThreadState {
 
   if (!messaging.isProduction) {
     return {
-      messages: clinic.messages.filter(
+      messages: (clinic.preview?.messages ?? []).filter(
         (message) => message.channelId === channelId,
       ),
       isLoading: false,
@@ -376,9 +376,10 @@ function createPreviewValue(
   clinic: ReturnType<typeof useClinic>,
   repository: MessagingRepository,
 ): MessagingContextValue {
+  const chat = clinic.preview
   return {
     isProduction: false,
-    channels: clinic.channels,
+    channels: chat?.channels ?? [],
     members: clinic.users.map((user) => ({
       memberId: user.id,
       userId: user.id,
@@ -397,13 +398,13 @@ function createPreviewValue(
     canSendMessage: (channelId) => canSendMessageInChannel(
       clinic.currentBinding,
       clinic.currentUser.id,
-      clinic.channels.find((item) => item.id === channelId),
+      chat?.channels.find((item) => item.id === channelId),
     ),
-    sendMessage: async (input) => clinic.sendMessage(input),
-    uploadAttachments: (files, channelId) => clinic.uploadAttachments(
-      files,
-      { kind: 'message', channelId },
-    ),
+    sendMessage: async (input) => chat?.sendMessage(input) ?? null,
+    uploadAttachments: async (files, channelId) => {
+      if (!chat) throw new Error('Use the authenticated attachment uploader.')
+      return chat.uploadAttachments(files, { kind: 'message', channelId })
+    },
     downloadAttachment: async (attachmentId) => {
       const attachment = clinic.attachments.find(
         (item) => item.id === attachmentId,

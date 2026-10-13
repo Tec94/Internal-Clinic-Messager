@@ -397,18 +397,6 @@ export interface Announcement {
   attachmentIds: string[]
 }
 
-export interface StaffingSnapshot {
-  locationId: string
-  capturedAt: string
-  scheduled: number
-  required: number
-  departmentCoverage: Array<{
-    departmentId: string
-    scheduled: number
-    required: number
-  }>
-}
-
 export interface PolicyWarning {
   id: string
   field: 'channelName' | 'purpose' | 'message' | 'attachment'
