@@ -222,7 +222,7 @@ const defaultMeetings: MiniMeeting[] = [
     organizerName: "Võ Thành Nam",
     provider: "Google Meet",
     response: "none",
-    section: "invitations",
+    section: "today",
     channelId: "front-desk-home",
   },
   {
@@ -435,7 +435,7 @@ const stressMeetings: MiniMeeting[] = [
       `${meeting.title["en-US"]} — cross-team coordination during the final shift`,
     ),
     response: (["none", "accepted", "declined"] as const)[index],
-    section: (["invitations", "upcoming", "past"] as const)[index],
+    section: (["today", "upcoming", "past"] as const)[index],
   })),
   ...Array.from({ length: 4 }, (_, index) => ({
     ...defaultMeetings[1],

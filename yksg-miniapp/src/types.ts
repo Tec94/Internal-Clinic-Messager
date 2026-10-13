@@ -62,7 +62,7 @@ export interface MiniTask {
 }
 
 export type MeetingResponse = "none" | "accepted" | "declined";
-export type MeetingSection = "invitations" | "upcoming" | "past";
+export type MeetingSection = "today" | "upcoming" | "past";
 
 export interface MiniMeeting {
   id: string;

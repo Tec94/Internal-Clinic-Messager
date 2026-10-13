@@ -88,7 +88,7 @@ describe("fixture-local state", () => {
     });
     expect(updated.meetingResponses["handoff-meeting"]).toBe("accepted");
     const declined = resolveMeeting(snapshot.meetings[0], "declined");
-    expect(declined.section).toBe("invitations");
+    expect(declined.section).toBe("today");
     expect(declined.response).toBe("declined");
   });
 
