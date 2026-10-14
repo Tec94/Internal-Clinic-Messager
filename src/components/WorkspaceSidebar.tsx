@@ -261,7 +261,7 @@ function ChannelLink({ channel, onSelect }: { channel: Channel; onSelect: () => 
       onClick={onSelect}
     >
       <ChannelGlyph channel={channel} />
-      <span className="channel-row__name">{channel.name}</span>
+      <span className="channel-row__name">{channel.type === 'direct' ? channel.displayName : channel.name}</span>
       {channel.visibility === 'private' ? <LockKeyhole className="channel-row__lock" size={13} aria-label="Private" /> : null}
       {channel.unreadCount > 0 ? <span className="unread-badge" aria-label={`${channel.unreadCount} unread`}>{channel.unreadCount}</span> : null}
     </NavLink>

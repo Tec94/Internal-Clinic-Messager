@@ -221,7 +221,7 @@ describe('clinic messenger application', () => {
     const peopleButtons = await screen.findAllByRole('button', { name: /Trần Thu Hà/i })
     await user.click(peopleButtons[peopleButtons.length - 1])
     expect(await screen.findByRole('heading', { level: 1, name: 'Trần Thu Hà' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Message #dm-/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Message Trần Thu Hà')).toBeInTheDocument()
   })
 
   it('shows members and translated roles in the channel drawer', async () => {

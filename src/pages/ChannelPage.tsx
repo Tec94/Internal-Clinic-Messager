@@ -94,6 +94,9 @@ export function ChannelPage() {
     return <div className="route-loading" role="alert">{messagingError}</div>
   }
   if (!channel) return <Navigate to="/channels" replace />
+  const composerLabel = channel.type === 'direct'
+    ? t('channel.directMessagePlaceholder', { name: channel.displayName })
+    : t('channel.messagePlaceholder', { channel: channel.name })
 
   const canSend = canSendMessage(channel.id)
 
@@ -228,7 +231,7 @@ export function ChannelPage() {
             onSubmit={submitMessage}
           >
             {supportsAttachments ? <IconButton aria-label={t('channel.attachFile')} onClick={() => dispatch({ type: 'attachmentsToggled' })} disabled={!canSend}><Paperclip size={20} /></IconButton> : null}
-            <label><span className="sr-only">{t('channel.messagePlaceholder', { channel: channel.name })}</span><textarea value={draft} onChange={(event) => dispatch({ type: 'draftChanged', draft: event.target.value })} onKeyDown={handleComposerKeyDown} placeholder={canSend ? t('channel.messagePlaceholder', { channel: channel.name }) : t('channel.viewOnly')} rows={1} disabled={!canSend} /></label>
+            <label><span className="sr-only">{composerLabel}</span><textarea value={draft} onChange={(event) => dispatch({ type: 'draftChanged', draft: event.target.value })} onKeyDown={handleComposerKeyDown} placeholder={canSend ? composerLabel : t('channel.viewOnly')} rows={1} disabled={!canSend} /></label>
             <div className="composer-tools">
               <IconButton className="composer-secondary-action" aria-label="Mention" disabled={!canSend}><AtSign size={18} /></IconButton>
               <IconButton className="composer-secondary-action" aria-label="Emoji" disabled={!canSend}><Smile size={18} /></IconButton>
