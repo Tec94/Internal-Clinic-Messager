@@ -128,6 +128,22 @@ describe("fixture-local state", () => {
     expect(state.tasks[taskId].status).toBe("accepted");
   });
 
+  it("restores in progress when a blocker clears before any checklist work", () => {
+    const snapshot = getWorkspaceSnapshot("default");
+    let state = createInitialMiniState(snapshot);
+    const taskId = "confirm-doctor-schedule";
+    state = miniStateReducer(state, { type: "task/accept", taskId });
+    state = miniStateReducer(state, { type: "task/start", taskId });
+    expect(state.tasks[taskId].status).toBe("inProgress");
+    state = miniStateReducer(state, {
+      type: "task/report-blocker",
+      taskId,
+      reason: "Waiting for the schedule owner",
+    });
+    state = miniStateReducer(state, { type: "task/clear-blocker", taskId });
+    expect(state.tasks[taskId]).toMatchObject({ status: "inProgress", statusBeforeBlock: undefined });
+  });
+
   it("updates meeting responses", () => {
     const snapshot = getWorkspaceSnapshot("default");
     const state = createInitialMiniState(snapshot);

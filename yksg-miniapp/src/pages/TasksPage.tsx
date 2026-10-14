@@ -135,6 +135,7 @@ const TaskDetail = ({ taskId }: { taskId: string }) => {
           }, {}),
           declineReason: task.declineReason,
           blockerReason: task.blockerReason,
+          statusBeforeBlock: task.statusBeforeBlock,
         },
       }, t("tasks.updated"));
     } else {

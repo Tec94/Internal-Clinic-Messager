@@ -1,6 +1,6 @@
 begin;
 
-select plan(45);
+select plan(48);
 
 select has_table('public', 'task_events', 'task event timeline exists');
 select has_table('public', 'task_templates', 'task templates exist');
@@ -197,6 +197,21 @@ select lives_ok(
   'the owner clears a blocker'
 );
 select is((select status from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'accepted', 'clearing a blocker restores accepted when no checklist work is complete');
+
+-- Regression: a Task in progress with no completed checklist items (e.g. after a
+-- reopen) must return to in progress, not accepted, when its blocker clears.
+reset role;
+update public.tasks set status = 'in_progress' where client_task_id = '60000000-0000-0000-0000-000000000052';
+set local role authenticated;
+select lives_ok(
+  $$select public.transition_task('00000000-0000-0000-0000-000000000051', (select id from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'block', 'Waiting for the vendor', null)$$,
+  'the owner blocks in-progress work'
+);
+select lives_ok(
+  $$select public.transition_task('00000000-0000-0000-0000-000000000051', (select id from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'unblock', null, null)$$,
+  'the owner clears the second blocker'
+);
+select is((select status from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'in_progress', 'clearing a blocker restores the status held before the block');
 
 reset role;
 select is(

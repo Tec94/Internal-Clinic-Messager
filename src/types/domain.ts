@@ -212,6 +212,7 @@ export interface Task {
   acceptedAt?: string
   declinedAt?: string
   blockedAt?: string
+  statusBeforeBlock?: TaskStatus
   completedAt?: string
   canceledAt?: string
   statusReason?: string

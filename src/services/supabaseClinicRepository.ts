@@ -81,6 +81,7 @@ interface TaskRecordRow extends Omit<TaskSummaryRow, 'task_checklist_items'> {
   accepted_at: string | null
   declined_at: string | null
   blocked_at: string | null
+  active_status_before_block: string | null
   completed_at: string | null
   canceled_at: string | null
   template_id: string | null
@@ -276,6 +277,7 @@ export function createSupabaseClinicRepository(
             accepted_at,
             declined_at,
             blocked_at,
+            active_status_before_block,
             completed_at,
             canceled_at,
             status_reason,
@@ -591,6 +593,7 @@ export function createSupabaseClinicRepository(
           acceptedAt: task.accepted_at ?? undefined,
           declinedAt: task.declined_at ?? undefined,
           blockedAt: task.blocked_at ?? undefined,
+          statusBeforeBlock: task.active_status_before_block ? mapTaskStatus(task.active_status_before_block) : undefined,
           completedAt: task.completed_at ?? undefined,
           canceledAt: task.canceled_at ?? undefined,
           statusReason: task.status_reason ?? undefined,
@@ -741,6 +744,7 @@ export function createSupabaseClinicRepository(
             accepted_at,
             declined_at,
             blocked_at,
+            active_status_before_block,
             completed_at,
             canceled_at,
             template_id,
@@ -805,6 +809,7 @@ export function createSupabaseClinicRepository(
         acceptedAt: task.accepted_at ?? undefined,
         declinedAt: task.declined_at ?? undefined,
         blockedAt: task.blocked_at ?? undefined,
+        statusBeforeBlock: task.active_status_before_block ? mapTaskStatus(task.active_status_before_block) : undefined,
         completedAt: task.completed_at ?? undefined,
         canceledAt: task.canceled_at ?? undefined,
         statusReason: task.status_reason ?? undefined,

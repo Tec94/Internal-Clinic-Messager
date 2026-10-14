@@ -44,6 +44,12 @@ describe('task lifecycle status rules', () => {
     expect(nextStatus(task('inProgress', [item('a', true), item('b', false)]), 'complete')).toBeNull()
   })
 
+  it('unblocks to the status held before the block', () => {
+    // A task reopened into progress with nothing checked must not fall back to accepted.
+    const reopened = { ...task('blocked', [item('a', false)]), statusBeforeBlock: 'inProgress' as const }
+    expect(nextStatus(reopened, 'unblock')).toBe('inProgress')
+  })
+
   it('unblocks to in progress when checklist work is complete', () => {
     expect(nextStatus(task('blocked', [item('a', true), item('b', false)]), 'unblock')).toBe('inProgress')
   })

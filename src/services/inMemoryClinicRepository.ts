@@ -259,6 +259,7 @@ export function createInMemoryClinicRepository(): InMemoryClinicRepository {
             : check)
           : task.checklist,
         blockedAt: action === 'block' ? changedAt : undefined,
+        statusBeforeBlock: action === 'block' ? task.status : undefined,
         completedAt: action === 'complete' ? changedAt : undefined,
         canceledAt: action === 'cancel' ? changedAt : undefined,
         statusReason: action === 'block' || action === 'cancel' ? reason : undefined,

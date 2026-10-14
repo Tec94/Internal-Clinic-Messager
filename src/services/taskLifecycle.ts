@@ -9,7 +9,7 @@ export interface TaskMember {
   role: UserRole
 }
 
-type LifecycleTask = Pick<Task, 'status' | 'ownerId' | 'createdById' | 'collaboratorIds' | 'checklist'>
+type LifecycleTask = Pick<Task, 'status' | 'ownerId' | 'createdById' | 'collaboratorIds' | 'checklist' | 'statusBeforeBlock'>
 
 const active: TaskStatus[] = ['accepted', 'inProgress']
 const reasonRequired: TaskLifecycleAction[] = ['decline', 'block', 'reopen', 'cancel', 'reassign']
@@ -24,7 +24,7 @@ const statusAfter = (task: LifecycleTask, action: TaskLifecycleAction): TaskStat
       if (!active.includes(task.status)) return null
       return task.checklist.length > 0 && completed === task.checklist.length ? 'done' : completed > 0 ? 'inProgress' : 'accepted'
     case 'block': return active.includes(task.status) ? 'blocked' : null
-    case 'unblock': return task.status === 'blocked' ? (completed > 0 ? 'inProgress' : 'accepted') : null
+    case 'unblock': return task.status === 'blocked' ? task.statusBeforeBlock ?? (completed > 0 ? 'inProgress' : 'accepted') : null
     case 'complete': return active.includes(task.status) && task.checklist.length === 0 ? 'done' : null
     case 'reopen': return task.status === 'done' ? (task.checklist.length > 0 ? 'inProgress' : 'accepted') : null
     case 'cancel': return ['done', 'canceled'].includes(task.status) ? null : 'canceled'

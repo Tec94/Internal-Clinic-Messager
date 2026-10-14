@@ -55,6 +55,7 @@ export const createInitialMiniState = (
         ),
         declineReason: task.declineReason,
         blockerReason: task.blockerReason,
+        statusBeforeBlock: task.statusBeforeBlock,
       };
       return tasks;
     },
@@ -136,7 +137,7 @@ export const miniStateReducer = (
       if (!reason) return state;
       return updateTask(state, action.taskId, (task) =>
         isActive(task)
-          ? { ...task, status: "blocked", blockerReason: reason }
+          ? { ...task, status: "blocked", blockerReason: reason, statusBeforeBlock: task.status }
           : task,
       );
     }
@@ -145,8 +146,10 @@ export const miniStateReducer = (
         task.status === "blocked"
           ? {
               ...task,
-              status: Object.values(task.checklist).some(Boolean) ? "inProgress" : "accepted",
+              status: task.statusBeforeBlock
+                ?? (Object.values(task.checklist).some(Boolean) ? "inProgress" : "accepted"),
               blockerReason: undefined,
+              statusBeforeBlock: undefined,
             }
           : task,
       );
@@ -168,6 +171,7 @@ export const miniStateReducer = (
         status: action.task.status,
         declineReason: action.task.declineReason,
         blockerReason: action.task.blockerReason,
+        statusBeforeBlock: action.task.statusBeforeBlock,
       }));
     case "meeting/respond":
       if (!(action.meetingId in state.meetingResponses)) return state;
@@ -208,6 +212,7 @@ export const resolveTask = (
     agenda: agendaForStatus(mutable.status, task.agenda),
     declineReason: mutable.declineReason,
     blockerReason: mutable.blockerReason,
+    statusBeforeBlock: mutable.statusBeforeBlock,
     checklist: task.checklist.map((item) => ({
       ...item,
       completed: mutable.checklist[item.id] ?? item.completed,
@@ -259,6 +264,10 @@ const sanitizePersistedState = (
       blockerReason:
         typeof storedTask.blockerReason === "string"
           ? storedTask.blockerReason
+          : undefined,
+      statusBeforeBlock:
+        storedTask.statusBeforeBlock === "accepted" || storedTask.statusBeforeBlock === "inProgress"
+          ? storedTask.statusBeforeBlock
           : undefined,
     };
   }
