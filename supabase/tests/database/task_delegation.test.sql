@@ -1,6 +1,6 @@
 begin;
 
-select plan(45);
+select plan(48);
 
 select has_table('public', 'task_events', 'task event timeline exists');
 select has_table('public', 'task_templates', 'task templates exist');
@@ -198,6 +198,21 @@ select lives_ok(
 );
 select is((select status from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'accepted', 'clearing a blocker restores accepted when no checklist work is complete');
 
+-- Regression: a Task in progress with no completed checklist items (e.g. after a
+-- reopen) must return to in progress, not accepted, when its blocker clears.
+reset role;
+update public.tasks set status = 'in_progress' where client_task_id = '60000000-0000-0000-0000-000000000052';
+set local role authenticated;
+select lives_ok(
+  $$select public.transition_task('00000000-0000-0000-0000-000000000051', (select id from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'block', 'Waiting for the vendor', null)$$,
+  'the owner blocks in-progress work'
+);
+select lives_ok(
+  $$select public.transition_task('00000000-0000-0000-0000-000000000051', (select id from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'unblock', null, null)$$,
+  'the owner clears the second blocker'
+);
+select is((select status from public.tasks where client_task_id = '60000000-0000-0000-0000-000000000052'), 'in_progress', 'clearing a blocker restores the status held before the block');
+
 reset role;
 select is(
   private.next_task_schedule_due('monthly', '2027-01-31 03:00:00+00'::timestamptz, '{}'::smallint[], 31::smallint, '10:00'::time, 'Asia/Ho_Chi_Minh'),
@@ -210,14 +225,14 @@ values ('70000000-0000-0000-0000-000000000051', '00000000-0000-0000-0000-0000000
 insert into public.task_template_items (organization_id, template_id, position, label)
 values ('00000000-0000-0000-0000-000000000051', '70000000-0000-0000-0000-000000000051', 0, 'Confirm readiness');
 insert into public.task_schedules (id, organization_id, template_id, created_by_member_id, channel_id, owner_member_id, frequency, due_local_time, timezone, create_lead_minutes, next_due_at)
-values ('71000000-0000-0000-0000-000000000051', '00000000-0000-0000-0000-000000000051', '70000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000051', '50000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000054', 'daily', '19:00'::time, 'Asia/Ho_Chi_Minh', 1440, '2026-08-04 12:00:00+00');
+values ('71000000-0000-0000-0000-000000000051', '00000000-0000-0000-0000-000000000051', '70000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000051', '50000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000054', 'daily', '19:00'::time, 'Asia/Ho_Chi_Minh', 1440, now() + interval '1 day');
 
-select is(private.generate_due_task_occurrences('2026-08-03 12:00:00+00'), 1, 'the recurrence generator creates an eligible independent occurrence');
-select is(private.generate_due_task_occurrences('2026-08-03 12:00:00+00'), 0, 'the recurrence generator is idempotent at the same reference time');
+select is(private.generate_due_task_occurrences(now()), 1, 'the recurrence generator creates an eligible independent occurrence');
+select is(private.generate_due_task_occurrences(now()), 0, 'the recurrence generator is idempotent at the same reference time');
 update public.task_templates set title = 'Future recurring title' where id = '70000000-0000-0000-0000-000000000051';
 select is((select title from public.tasks where schedule_id = '71000000-0000-0000-0000-000000000051'), 'Recurring check', 'schedule edits do not rewrite existing occurrences');
-update public.task_schedules set active = false, next_due_at = '2026-08-04 12:00:00+00' where id = '71000000-0000-0000-0000-000000000051';
-select is(private.generate_due_task_occurrences('2026-08-03 12:00:00+00'), 0, 'paused schedules do not generate occurrences');
+update public.task_schedules set active = false, next_due_at = now() + interval '1 day' where id = '71000000-0000-0000-0000-000000000051';
+select is(private.generate_due_task_occurrences(now()), 0, 'paused schedules do not generate occurrences');
 select is((select count(*) from public.tasks where schedule_id = '71000000-0000-0000-0000-000000000051'), 1::bigint, 'a schedule occurrence remains independent and unique');
 
 select * from finish();

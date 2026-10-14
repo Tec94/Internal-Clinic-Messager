@@ -59,10 +59,11 @@ export interface MiniTask {
   checklist: MiniTaskChecklistItem[];
   declineReason?: string;
   blockerReason?: string;
+  statusBeforeBlock?: TaskStatus;
 }
 
 export type MeetingResponse = "none" | "accepted" | "declined";
-export type MeetingSection = "invitations" | "upcoming" | "past";
+export type MeetingSection = "today" | "upcoming" | "past";
 
 export interface MiniMeeting {
   id: string;
@@ -116,6 +117,7 @@ export interface TaskMutableState {
   checklist: Record<string, boolean>;
   declineReason?: string;
   blockerReason?: string;
+  statusBeforeBlock?: TaskStatus;
 }
 
 export interface MiniMutableState {

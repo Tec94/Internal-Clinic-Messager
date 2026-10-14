@@ -2,6 +2,33 @@ import { describe, expect, it, vi } from 'vitest'
 import { createSupabaseClinicRepository } from '../services/supabaseClinicRepository'
 import { supabase } from '../utils/supabase'
 
+describe('Supabase clinic direct messages', () => {
+  it('finds or creates the direct message through the scoped RPC', async () => {
+    const single = vi.fn().mockResolvedValue({ data: { id: 'dm-1' }, error: null })
+    const rpc = vi.fn(() => ({ single }))
+    const repository = createSupabaseClinicRepository({ rpc } as unknown as typeof supabase)
+
+    await expect(repository.ensureDirectChannel(
+      { organizationId: 'org-1', memberId: 'member-1' },
+      'member-2',
+    )).resolves.toBe('dm-1')
+    expect(rpc).toHaveBeenCalledWith('ensure_direct_channel', {
+      target_organization_id: 'org-1',
+      target_member_id: 'member-2',
+    })
+  })
+
+  it('surfaces a rejected participant', async () => {
+    const single = vi.fn().mockResolvedValue({ data: null, error: { message: 'The direct message participant is invalid.' } })
+    const repository = createSupabaseClinicRepository({ rpc: () => ({ single }) } as unknown as typeof supabase)
+
+    await expect(repository.ensureDirectChannel(
+      { organizationId: 'org-1', memberId: 'member-1' },
+      'member-1',
+    )).rejects.toThrow('participant is invalid')
+  })
+})
+
 describe('Supabase clinic task repository', () => {
   it('coalesces overlapping refreshes and returns the newer snapshot to every caller', async () => {
     const harness = createSnapshotHarness()
@@ -11,7 +38,8 @@ describe('Supabase clinic task repository', () => {
 
     expect(second).toBe(first)
     expect(third).toBe(first)
-    expect(harness.from).toHaveBeenCalledTimes(30)
+    expect(harness.from).toHaveBeenCalledTimes(26)
+    expect(harness.from).not.toHaveBeenCalledWith('channels')
     harness.reads[0].resolve(snapshotOrganization('Before mutation'))
     await harness.nextRead()
     harness.reads[1].resolve(snapshotOrganization('After mutation'))
@@ -20,7 +48,7 @@ describe('Supabase clinic task repository', () => {
     expect(snapshots.map((snapshot) => snapshot.organization.name)).toEqual([
       'After mutation', 'After mutation', 'After mutation',
     ])
-    expect(harness.from).toHaveBeenCalledTimes(62)
+    expect(harness.from).toHaveBeenCalledTimes(54)
   })
 
   it('retains a change arriving during the trailing refresh', async () => {
@@ -37,7 +65,7 @@ describe('Supabase clinic task repository', () => {
 
     expect((await first).organization.name).toBe('Latest')
     expect((await newest).organization.name).toBe('Latest')
-    expect(harness.from).toHaveBeenCalledTimes(93)
+    expect(harness.from).toHaveBeenCalledTimes(81)
   })
 
   it('does not share snapshots across members or cache a completed read', async () => {
@@ -45,7 +73,7 @@ describe('Supabase clinic task repository', () => {
     const first = harness.repository.loadSnapshot(harness.scope)
     const other = harness.repository.loadSnapshot({ ...harness.scope, memberId: 'member-2' })
     expect(other).not.toBe(first)
-    expect(harness.from).toHaveBeenCalledTimes(60)
+    expect(harness.from).toHaveBeenCalledTimes(52)
     harness.reads[0].resolve(snapshotOrganization('First member'))
     harness.reads[1].resolve(snapshotOrganization('Other member'))
     expect((await first).organization.name).toBe('First member')
@@ -54,7 +82,7 @@ describe('Supabase clinic task repository', () => {
     const fresh = harness.repository.loadSnapshot(harness.scope)
     harness.reads[2].resolve(snapshotOrganization('Fresh'))
     expect((await fresh).organization.name).toBe('Fresh')
-    expect(harness.from).toHaveBeenCalledTimes(93)
+    expect(harness.from).toHaveBeenCalledTimes(81)
   })
 
   it('releases failed refreshes so a subsequent request can recover', async () => {
@@ -68,7 +96,7 @@ describe('Supabase clinic task repository', () => {
     const retry = harness.repository.loadSnapshot(harness.scope)
     harness.reads[1].resolve(snapshotOrganization('Recovered'))
     expect((await retry).organization.name).toBe('Recovered')
-    expect(harness.from).toHaveBeenCalledTimes(61)
+    expect(harness.from).toHaveBeenCalledTimes(53)
   })
 
   it('maps a bounded task page and returns a keyset cursor', async () => {

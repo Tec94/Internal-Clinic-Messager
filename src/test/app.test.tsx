@@ -26,14 +26,14 @@ function renderApp(path: string) {
 }
 
 function DirectChannelProbe() {
-  const { channels, ensureDirectChannel } = useClinic()
+  const { preview, ensureDirectChannel } = useClinic()
   const [openedIds, setOpenedIds] = useState<string[]>([])
-  const directCount = channels.filter((channel) => channel.type === 'direct').length
+  const directCount = (preview?.channels ?? []).filter((channel) => channel.type === 'direct').length
   return (
     <div>
-      <button type="button" onClick={() => {
-        const channel = ensureDirectChannel('user-manager')
-        setOpenedIds((items) => [...items, channel?.id ?? 'none'])
+      <button type="button" onClick={async () => {
+        const channelId = await ensureDirectChannel('user-manager')
+        setOpenedIds((items) => [...items, channelId ?? 'none'])
       }}>Open manager DM</button>
       <output aria-label="direct-count">{directCount}</output>
       <output aria-label="opened-ids">{openedIds.join(',')}</output>
@@ -221,7 +221,7 @@ describe('clinic messenger application', () => {
     const peopleButtons = await screen.findAllByRole('button', { name: /Trần Thu Hà/i })
     await user.click(peopleButtons[peopleButtons.length - 1])
     expect(await screen.findByRole('heading', { level: 1, name: 'Trần Thu Hà' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Message #dm-/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Message Trần Thu Hà')).toBeInTheDocument()
   })
 
   it('shows members and translated roles in the channel drawer', async () => {
@@ -272,7 +272,11 @@ describe('clinic messenger application', () => {
 
   it('reuses an existing direct channel for repeated person opens', async () => {
     const user = userEvent.setup()
-    render(<ClinicProvider><DirectChannelProbe /></ClinicProvider>)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ClinicProvider><DirectChannelProbe /></ClinicProvider>
+      </QueryClientProvider>,
+    )
     await user.click(screen.getByRole('button', { name: 'Open manager DM' }))
     expect(screen.getByLabelText('direct-count')).toHaveTextContent('1')
     await user.click(screen.getByRole('button', { name: 'Open manager DM' }))

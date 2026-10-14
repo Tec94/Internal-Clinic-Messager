@@ -5,6 +5,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../state/AuthContext'
 import { useClinic } from '../state/ClinicContext'
 import { useMessaging } from '../state/MessagingContext'
+import { hasOrganizationScope } from '../services/permissions'
 import type { Channel, ChannelType } from '../types/domain'
 import { AppSelect } from './AppSelect'
 import { Avatar, Button, ChannelGlyph, IconButton } from './ui'
@@ -52,7 +53,6 @@ export function WorkspaceSidebar({
     isProduction,
     isLoading: messagingLoading,
     error: messagingError,
-    supportsChannelCreation,
   } = useMessaging()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'unread' | 'mentions' | 'urgent'>('all')
@@ -74,7 +74,7 @@ export function WorkspaceSidebar({
 
   const visibleChannels = useMemo(() => {
     const allowed = channels.filter((channel) => {
-      const roleCanSeeAll = currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin'
+      const roleCanSeeAll = hasOrganizationScope(currentBinding)
       const isMember = channel.memberIds.includes(currentUser.id)
       const inLocation = currentLocationId === 'all' || channel.locationIds.includes(currentLocationId)
       const matchesQuery = `${channel.name} ${channel.displayName}`.toLowerCase().includes(query.toLowerCase())
@@ -95,7 +95,7 @@ export function WorkspaceSidebar({
     return allowed
   }, [
     channels,
-    currentBinding.role,
+    currentBinding,
     currentLocationId,
     currentUser.id,
     filter,
@@ -125,10 +125,10 @@ export function WorkspaceSidebar({
     { title: t('sidebar.announcements'), types: new Set(['announcement', 'leadership', 'location']) },
   ]
 
-  const openDirectMessage = (userId: string) => {
-    const channel = ensureDirectChannel(userId)
-    if (!channel) return
-    navigate(`/channels/${channel.id}`)
+  const openDirectMessage = async (userId: string) => {
+    const channelId = await ensureDirectChannel(userId)
+    if (!channelId) return
+    navigate(`/channels/${channelId}`)
     onClose()
   }
 
@@ -145,7 +145,7 @@ export function WorkspaceSidebar({
               value={currentLocationId}
               onValueChange={setCurrentLocationId}
               options={[
-                ...((currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin')
+                ...(hasOrganizationScope(currentBinding)
                   ? [{ value: 'all', label: t('common.allLocations') }]
                   : []),
                 ...availableLocations.map((item) => ({
@@ -225,9 +225,9 @@ export function WorkspaceSidebar({
               ? <p>{t('common.noResults')}</p>
               : null}
           </div>
-          {supportsChannelCreation ? <div className="sidebar-create">
+          <div className="sidebar-create">
             <Button icon={<Plus size={18} />} onClick={onCreateChannel}>{t('sidebar.createChannel')}</Button>
-          </div> : null}
+          </div>
         </>
       )}
 
@@ -261,7 +261,7 @@ function ChannelLink({ channel, onSelect }: { channel: Channel; onSelect: () => 
       onClick={onSelect}
     >
       <ChannelGlyph channel={channel} />
-      <span className="channel-row__name">{channel.name}</span>
+      <span className="channel-row__name">{channel.type === 'direct' ? channel.displayName : channel.name}</span>
       {channel.visibility === 'private' ? <LockKeyhole className="channel-row__lock" size={13} aria-label="Private" /> : null}
       {channel.unreadCount > 0 ? <span className="unread-badge" aria-label={`${channel.unreadCount} unread`}>{channel.unreadCount}</span> : null}
     </NavLink>

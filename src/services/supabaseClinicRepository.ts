@@ -1,63 +1,17 @@
 import { supabase } from '../utils/supabase'
+import type { ClinicRepository, ClinicSnapshot, RepositoryScope } from './clinicRepository'
+import { initials, toAttachment } from './rowMappers'
 import type {
-  AccessRequest,
-  Announcement,
   Assignment,
-  Attachment,
-  AuditEvent,
-  Channel,
-  ChannelMembership,
-  CreateAnnouncementInput,
-  CreateChannelInput,
-  CreateMeetingInput,
-  CreateTaskInput,
-  Department,
-  Location,
-  Meeting,
-  MeetingResponse,
-  MeetingResponseStatus,
-  Organization,
   RoleBinding,
-  SaveLocationInput,
-  SaveMemberAssignmentInput,
-  SaveOrganizationSettingsInput,
   Task,
   TaskDetail,
   TaskEvent,
-  TaskSchedule,
   TaskStatus,
   TaskSummary,
-  TaskTemplate,
-  TaskTransitionAction,
   User,
   WorkAgendaItem,
 } from '../types/domain'
-
-export interface ClinicSnapshot {
-  organization: Organization
-  locations: Location[]
-  departments: Department[]
-  users: User[]
-  assignments: Assignment[]
-  roleBindings: RoleBinding[]
-  channels: Channel[]
-  memberships: ChannelMembership[]
-  tasks: Task[]
-  taskEvents: TaskEvent[]
-  taskTemplates: TaskTemplate[]
-  taskSchedules: TaskSchedule[]
-  attachments: Attachment[]
-  meetings: Meeting[]
-  meetingResponses: MeetingResponse[]
-  announcements: Announcement[]
-  accessRequests: AccessRequest[]
-  auditEvents: AuditEvent[]
-}
-
-interface RepositoryScope {
-  organizationId: string
-  memberId: string
-}
 
 export interface TaskListFilters {
   search?: string
@@ -79,8 +33,7 @@ export interface WorkAgendaPage {
   nextCursor?: string
 }
 
-export interface SupabaseClinicRepository {
-  loadSnapshot: (scope: RepositoryScope) => Promise<ClinicSnapshot>
+export interface SupabaseClinicRepository extends ClinicRepository {
   listTasks: (
     scope: RepositoryScope,
     filters?: TaskListFilters,
@@ -95,74 +48,6 @@ export interface SupabaseClinicRepository {
     cursor?: string,
     limit?: number,
   ) => Promise<WorkAgendaPage>
-  createChannel: (
-    scope: RepositoryScope,
-    input: CreateChannelInput,
-  ) => Promise<string>
-  createTask: (
-    scope: RepositoryScope,
-    input: CreateTaskInput,
-  ) => Promise<string>
-  setTaskChecklistItem: (
-    scope: RepositoryScope,
-    taskId: string,
-    itemId: string,
-    completed: boolean,
-  ) => Promise<void>
-  respondToTask: (
-    scope: RepositoryScope,
-    taskId: string,
-    response: 'accept' | 'decline',
-    reason?: string,
-  ) => Promise<void>
-  transitionTask: (
-    scope: RepositoryScope,
-    taskId: string,
-    action: TaskTransitionAction,
-    reason?: string,
-    reopenItemId?: string,
-  ) => Promise<void>
-  reassignTask: (
-    scope: RepositoryScope,
-    taskId: string,
-    ownerId: string,
-    reason: string,
-  ) => Promise<void>
-  setTaskScheduleActive: (
-    scope: RepositoryScope,
-    scheduleId: string,
-    active: boolean,
-  ) => Promise<void>
-  createMeeting: (
-    scope: RepositoryScope,
-    input: CreateMeetingInput,
-  ) => Promise<string>
-  respondToMeeting: (
-    scope: RepositoryScope,
-    meetingId: string,
-    status: MeetingResponseStatus,
-  ) => Promise<void>
-  createAnnouncement: (
-    scope: RepositoryScope,
-    input: CreateAnnouncementInput,
-  ) => Promise<string>
-  saveOrganizationSettings: (
-    scope: RepositoryScope,
-    input: SaveOrganizationSettingsInput,
-  ) => Promise<void>
-  saveLocation: (
-    scope: RepositoryScope,
-    input: SaveLocationInput,
-  ) => Promise<string>
-  saveMemberAssignment: (
-    scope: RepositoryScope,
-    input: SaveMemberAssignmentInput,
-  ) => Promise<void>
-  resolveAccessRequest: (
-    scope: RepositoryScope,
-    requestId: string,
-    status: 'approved' | 'denied',
-  ) => Promise<void>
 }
 
 const taskSummaryColumns = `
@@ -196,6 +81,7 @@ interface TaskRecordRow extends Omit<TaskSummaryRow, 'task_checklist_items'> {
   accepted_at: string | null
   declined_at: string | null
   blocked_at: string | null
+  active_status_before_block: string | null
   completed_at: string | null
   canceled_at: string | null
   template_id: string | null
@@ -278,6 +164,16 @@ export function createSupabaseClinicRepository(
   client: typeof supabase = supabase,
 ): SupabaseClinicRepository {
   return {
+    subscribe: (scope, onChange) => {
+      const filter = `organization_id=eq.${scope.organizationId}`
+      const channel = client
+        .channel(`task-work-agenda:${scope.organizationId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter }, onChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_checklist_items', filter }, onChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_events', filter }, onChange)
+        .subscribe()
+      return () => { void client.removeChannel(channel) }
+    },
     loadSnapshot: coalesceSnapshotRefreshes(async (scope) => {
       const [
         organizationResult,
@@ -289,10 +185,6 @@ export function createSupabaseClinicRepository(
         bindingsResult,
         bindingLocationsResult,
         bindingDepartmentsResult,
-        channelsResult,
-        channelLocationsResult,
-        channelDepartmentsResult,
-        membershipsResult,
         tasksResult,
         collaboratorsResult,
         checklistResult,
@@ -372,43 +264,6 @@ export function createSupabaseClinicRepository(
           .select('role_binding_id, department_id')
           .eq('organization_id', scope.organizationId),
         client
-          .from('channels')
-          .select(`
-            id,
-            name,
-            display_name,
-            purpose,
-            type,
-            visibility,
-            owner_member_id,
-            is_urgent,
-            archive_at
-          `)
-          .eq('organization_id', scope.organizationId)
-          .is('archived_at', null)
-          .order('updated_at', { ascending: false }),
-        client
-          .from('channel_locations')
-          .select('channel_id, location_id')
-          .eq('organization_id', scope.organizationId),
-        client
-          .from('channel_departments')
-          .select('channel_id, department_id')
-          .eq('organization_id', scope.organizationId),
-        client
-          .from('channel_memberships')
-          .select(`
-            id,
-            channel_id,
-            member_id,
-            source,
-            can_send,
-            starts_at,
-            expires_at,
-            archived_at
-          `)
-          .eq('organization_id', scope.organizationId),
-        client
           .from('tasks')
           .select(`
             id,
@@ -422,6 +277,7 @@ export function createSupabaseClinicRepository(
             accepted_at,
             declined_at,
             blocked_at,
+            active_status_before_block,
             completed_at,
             canceled_at,
             status_reason,
@@ -577,10 +433,6 @@ export function createSupabaseClinicRepository(
         bindingsResult,
         bindingLocationsResult,
         bindingDepartmentsResult,
-        channelsResult,
-        channelLocationsResult,
-        channelDepartmentsResult,
-        membershipsResult,
         tasksResult,
         collaboratorsResult,
         checklistResult,
@@ -658,21 +510,7 @@ export function createSupabaseClinicRepository(
         }]
       })
 
-      const activeMembershipRows = (membershipsResult.data ?? []).filter(
-        isActiveChannelMembership,
-      )
-      const attachments = (attachmentsResult.data ?? []).map((attachment) => ({
-        id: attachment.id,
-        name: attachment.original_name,
-        type: attachment.mime_type,
-        sizeLabel: formatBytes(attachment.size_bytes),
-        sizeBytes: attachment.size_bytes,
-        uploadedBy: attachment.uploader_member_id,
-        uploadedAt: attachment.created_at,
-        channelId: attachment.channel_id,
-        status: attachment.status,
-        scanStatus: attachment.scan_status,
-      } satisfies Attachment))
+      const attachments = (attachmentsResult.data ?? []).map(toAttachment)
 
       return {
         organization: {
@@ -728,35 +566,6 @@ export function createSupabaseClinicRepository(
           endsAt: assignment.ends_at ?? undefined,
         })),
         roleBindings,
-        channels: (channelsResult.data ?? []).map((channel) => ({
-          id: channel.id,
-          name: channel.name,
-          displayName: channel.display_name,
-          purpose: channel.purpose,
-          type: channel.type,
-          visibility: channel.visibility,
-          locationIds: (channelLocationsResult.data ?? [])
-            .filter((row) => row.channel_id === channel.id)
-            .map((row) => row.location_id),
-          departmentIds: (channelDepartmentsResult.data ?? [])
-            .filter((row) => row.channel_id === channel.id)
-            .map((row) => row.department_id),
-          ownerId: channel.owner_member_id,
-          memberIds: activeMembershipRows
-            .filter((membership) => membership.channel_id === channel.id)
-            .map((membership) => membership.member_id),
-          unreadCount: 0,
-          isUrgent: channel.is_urgent,
-          archiveAt: channel.archive_at ?? undefined,
-        })),
-        memberships: activeMembershipRows.map((membership) => ({
-          id: membership.id,
-          channelId: membership.channel_id,
-          userId: membership.member_id,
-          source: mapMembershipSource(membership.source),
-          joinedAt: membership.starts_at,
-          expiresAt: membership.expires_at ?? undefined,
-        })),
         tasks: (tasksResult.data ?? []).map((task) => ({
           id: task.id,
           title: task.title,
@@ -784,6 +593,7 @@ export function createSupabaseClinicRepository(
           acceptedAt: task.accepted_at ?? undefined,
           declinedAt: task.declined_at ?? undefined,
           blockedAt: task.blocked_at ?? undefined,
+          statusBeforeBlock: task.active_status_before_block ? mapTaskStatus(task.active_status_before_block) : undefined,
           completedAt: task.completed_at ?? undefined,
           canceledAt: task.canceled_at ?? undefined,
           statusReason: task.status_reason ?? undefined,
@@ -934,6 +744,7 @@ export function createSupabaseClinicRepository(
             accepted_at,
             declined_at,
             blocked_at,
+            active_status_before_block,
             completed_at,
             canceled_at,
             template_id,
@@ -998,6 +809,7 @@ export function createSupabaseClinicRepository(
         acceptedAt: task.accepted_at ?? undefined,
         declinedAt: task.declined_at ?? undefined,
         blockedAt: task.blocked_at ?? undefined,
+        statusBeforeBlock: task.active_status_before_block ? mapTaskStatus(task.active_status_before_block) : undefined,
         completedAt: task.completed_at ?? undefined,
         canceledAt: task.canceled_at ?? undefined,
         statusReason: task.status_reason ?? undefined,
@@ -1106,6 +918,17 @@ export function createSupabaseClinicRepository(
         })
         .single()
       if (error) throw new Error(`Could not create the channel: ${error.message}`)
+      return (data as { id: string }).id
+    },
+
+    async ensureDirectChannel(scope, targetMemberId) {
+      const { data, error } = await client
+        .rpc('ensure_direct_channel', {
+          target_organization_id: scope.organizationId,
+          target_member_id: targetMemberId,
+        })
+        .single()
+      if (error) throw new Error(`Could not open the direct message: ${error.message}`)
       return (data as { id: string }).id
     },
 
@@ -1430,42 +1253,6 @@ function localTimeForZone(value: string, timezone: string) {
   }).formatToParts(new Date(value))
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '00'
   return `${part('hour')}:${part('minute')}:${part('second')}`
-}
-
-function mapMembershipSource(
-  value: string,
-): ChannelMembership['source'] {
-  if (value === 'access_request') return 'accessRequest'
-  if (value === 'invitation') return 'invitation'
-  return 'policy'
-}
-
-function isActiveChannelMembership(row: {
-  archived_at: string | null
-  starts_at: string
-  expires_at: string | null
-}) {
-  const now = Date.now()
-  return (
-    row.archived_at === null
-    && Date.parse(row.starts_at) <= now
-    && (row.expires_at === null || Date.parse(row.expires_at) > now)
-  )
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0]?.toLocaleUpperCase())
-    .join('')
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function toDisplayName(name: string) {

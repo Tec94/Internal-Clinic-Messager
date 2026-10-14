@@ -1,5 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type PropsWithChildren, type ReactNode } from 'react'
-import { AlertTriangle, CheckCircle2, Clock3, LockKeyhole } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock3, LockKeyhole, UserRound } from 'lucide-react'
 import type { Channel, Presence } from '../types/domain'
 
 type ButtonVariant = 'primary' | 'secondary'
@@ -67,6 +67,7 @@ export function StatusBadge({
 
 export function ChannelGlyph({ channel }: { channel: Channel }) {
   if (channel.type === 'leadership') return <LockKeyhole size={16} aria-hidden="true" />
+  if (channel.type === 'direct') return <UserRound size={16} aria-hidden="true" />
   if (channel.isUrgent) return <AlertTriangle size={16} aria-hidden="true" />
   if (channel.type === 'incident') return <Clock3 size={16} aria-hidden="true" />
   if (channel.type === 'announcement') return <CheckCircle2 size={16} aria-hidden="true" />

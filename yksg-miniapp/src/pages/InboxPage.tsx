@@ -17,7 +17,7 @@ export const InboxPage = () => {
   const { snapshot, tasks, meetings } = useMiniState();
   const unreadChannels = snapshot.channels.filter((channel) => channel.unreadCount > 0);
   const todayTasks = tasks.filter((task) => task.agenda === "needsAttention" || task.agenda === "today");
-  const todayMeetings = meetings.filter((meeting) => meeting.section === "invitations");
+  const todayMeetings = meetings.filter((meeting) => meeting.section === "today");
   const entries: Array<{ kind: "task"; item: MiniTask } | { kind: "meeting"; item: MiniMeeting }> = [
     ...todayMeetings.map((item) => ({ kind: "meeting" as const, item })),
     ...todayTasks.map((item) => ({ kind: "task" as const, item })),

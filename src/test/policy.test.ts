@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inspectOperationalContent } from '../services/mockClinicService'
+import { inspectOperationalContent } from '../services/patientInfoWarning'
 
 describe('operational-only content warnings', () => {
   it('does not warn for ordinary operational coordination', () => {

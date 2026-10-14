@@ -18,7 +18,7 @@ import { copyFor } from "@/localization";
 import { useMiniState } from "@/state/MiniStateContext";
 import { MeetingSection, MiniMeeting } from "@/types";
 
-const meetingSections: MeetingSection[] = ["invitations", "upcoming", "past"];
+const meetingSections: MeetingSection[] = ["today", "upcoming", "past"];
 
 const MeetingRow = ({ meeting }: { meeting: MiniMeeting }) => {
   const locale = getActiveMiniLocale();

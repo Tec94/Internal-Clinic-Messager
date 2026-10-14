@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import i18n from '../i18n'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
+import { canSeeChannel, isManager } from '../services/permissions'
 import type { Task, TaskStatus } from '../types/domain'
 import { AppSelect } from './AppSelect'
 import { TaskStatusBadge } from './TaskStatusBadge'
@@ -34,9 +36,10 @@ export function ModuleSidebar({ mode, onSelect }: { mode: ModuleSidebarMode; onS
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const {
-    currentUser, currentBinding, currentLocationId, channels, tasks, attachments,
+    currentUser, currentBinding, currentLocationId, tasks, attachments,
     meetings, meetingResponses, users, departments, assignments, ensureDirectChannel,
   } = useClinic()
+  const { channels } = useMessaging()
   const [query, setQuery] = useState('')
   const [taskView, setTaskView] = useState<TaskView>('mine')
   const [statusFilter, setStatusFilter] = useState<'' | TaskStatus>('')
@@ -44,14 +47,8 @@ export function ModuleSidebar({ mode, onSelect }: { mode: ModuleSidebarMode; onS
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [visibleTaskCount, setVisibleTaskCount] = useState(50)
   const selectedDate = searchParams.get('date') ?? ''
-  const canViewScope = ['owner', 'orgAdmin', 'locationManager', 'departmentLead'].includes(currentBinding.role)
-  const accessibleChannelIds = useMemo(() => new Set(channels.filter((channel) => {
-    if (currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin') return true
-    const inAssignedLocation = channel.locationIds.some((locationId) => currentBinding.locationIds.includes(locationId))
-    if (currentBinding.role === 'locationManager') return inAssignedLocation
-    if (currentBinding.role === 'departmentLead') return inAssignedLocation && channel.departmentIds.some((departmentId) => currentBinding.departmentIds.includes(departmentId))
-    return channel.visibility === 'public' || channel.memberIds.includes(currentUser.id)
-  }).map((channel) => channel.id)), [channels, currentBinding, currentUser.id])
+  const canViewScope = isManager(currentBinding)
+  const accessibleChannelIds = useMemo(() => new Set(channels.filter((channel) => canSeeChannel(currentBinding, channel, currentUser.id)).map((channel) => channel.id)), [channels, currentBinding, currentUser.id])
   const normalized = query.trim().toLocaleLowerCase(i18n.language)
 
   useEffect(() => { setVisibleTaskCount(50) }, [departmentFilter, normalized, ownerFilter, selectedDate, statusFilter, taskView])
@@ -90,10 +87,10 @@ export function ModuleSidebar({ mode, onSelect }: { mode: ModuleSidebarMode; onS
   const meetingMarkers = acceptedMeetings.map((meeting) => ({ at: meeting.startsAt, kind: 'meeting' as const }))
   const taskGroups = groupTasks(taskItems, t, canViewScope && taskView !== 'mine')
 
-  const openDirectMessage = (userId: string) => {
-    const channel = ensureDirectChannel(userId)
-    if (!channel) return
-    navigate(`/channels/${channel.id}`)
+  const openDirectMessage = async (userId: string) => {
+    const channelId = await ensureDirectChannel(userId)
+    if (!channelId) return
+    navigate(`/channels/${channelId}`)
     onSelect()
   }
   const selectDate = (nextDate: string) => navigate(nextDate ? `/tasks?date=${nextDate}` : '/tasks')

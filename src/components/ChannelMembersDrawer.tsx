@@ -21,7 +21,7 @@ export function ChannelMembersDrawer({
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
-  const { users, roleBindings, assignments, departments, locations, memberships } = useClinic()
+  const { users, roleBindings, assignments, departments, locations, preview } = useClinic()
   const messaging = useMessaging()
 
   if (messaging.isProduction) {
@@ -72,7 +72,7 @@ export function ChannelMembersDrawer({
     return user
       ? [{
           user,
-          membership: memberships.find(
+          membership: preview?.memberships.find(
             (item) => item.channelId === channel.id && item.userId === userId,
           ),
         }]

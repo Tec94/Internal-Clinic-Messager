@@ -20,6 +20,7 @@ const taskState = (task: MiniTask): TaskMutableState => ({
   }, {}),
   declineReason: task.declineReason,
   blockerReason: task.blockerReason,
+  statusBeforeBlock: task.statusBeforeBlock,
 });
 
 export const WorkRail = ({ entries }: { entries: RailEntry[] }) => {

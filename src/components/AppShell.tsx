@@ -39,7 +39,6 @@ export function AppShell({
   const { hasPermission } = useClinic()
   const {
     channels,
-    supportsChannelCreation,
   } = useMessaging()
   const location = useLocation()
   const navigate = useNavigate()
@@ -57,7 +56,6 @@ export function AppShell({
   }
 
   const openCreateChannel = () => {
-    if (!supportsChannelCreation) return
     channelDialogTrigger.current = document.activeElement as HTMLElement | null
     setCreateChannelOpen(true)
   }
@@ -185,13 +183,11 @@ export function AppShell({
 
             <MobileNavigation unreadTotal={unreadTotal} chatPath="/channels" zaloEnabled={zaloEnabled} onOpenZalo={handleZaloPanel} />
 
-            {supportsChannelCreation ? (
-              <ChannelCreationDialog
-                open={createChannelOpen}
-                onOpenChange={handleCreateChannelOpenChange}
-              />
-            ) : null}
-            {!authEnabled ? <DeveloperRolePanel /> : null}
+            <ChannelCreationDialog
+              open={createChannelOpen}
+              onOpenChange={handleCreateChannelOpenChange}
+            />
+            <DeveloperRolePanel />
             {!isNative ? <PwaStatus /> : null}
             {zaloBlocked ? <p className="sr-only" role="alert">{t('zalo.blocked')}</p> : null}
             <button type="button" className={`sidebar-scrim ${sidebarOpen ? 'is-visible' : ''}`} onClick={closeSidebar} aria-label={t('common.close')} />

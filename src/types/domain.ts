@@ -212,6 +212,7 @@ export interface Task {
   acceptedAt?: string
   declinedAt?: string
   blockedAt?: string
+  statusBeforeBlock?: TaskStatus
   completedAt?: string
   canceledAt?: string
   statusReason?: string
@@ -395,18 +396,6 @@ export interface Announcement {
   publishedAt?: string
   expiresAt?: string
   attachmentIds: string[]
-}
-
-export interface StaffingSnapshot {
-  locationId: string
-  capturedAt: string
-  scheduled: number
-  required: number
-  departmentCoverage: Array<{
-    departmentId: string
-    scheduled: number
-    required: number
-  }>
 }
 
 export interface PolicyWarning {

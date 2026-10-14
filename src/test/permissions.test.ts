@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { channels, roleBindings } from '../data/seed'
+import type { Channel, RoleBinding, UserRole } from '../types/domain'
 import {
+  canAssignTaskTo,
+  canSeeChannel,
   canSendMessageInChannel,
+  hasOrganizationScope,
   hasPermission,
+  isManager,
 } from '../services/permissions'
 
 describe('role-scoped permissions', () => {
@@ -55,5 +60,61 @@ describe('role-scoped permissions', () => {
     const channel = channels.find((item) => item.id === 'front-desk-home')!
     expect(canSendMessageInChannel(expired, 'user-employee', channel, new Date('2026-07-07T00:00:00+07:00'))).toBe(false)
     expect(canSendMessageInChannel(contractor, 'user-contractor', channel)).toBe(false)
+  })
+})
+
+const binding = (role: UserRole): RoleBinding => ({
+  id: `rb-${role}`, userId: 'self', role, organizationId: 'org', locationIds: ['loc-a'], departmentIds: ['dep-a'], startsAt: '2026-01-01',
+})
+const channel = (patch: Partial<Channel>): Channel => ({
+  id: 'c', name: 'c', displayName: 'c', purpose: '', type: 'department', visibility: 'private',
+  locationIds: ['loc-b'], departmentIds: [], ownerId: 'x', memberIds: [], unreadCount: 0, isUrgent: false, ...patch,
+})
+
+describe('Scope rules', () => {
+  it.each<[UserRole, boolean, boolean]>([
+    ['owner', true, true],
+    ['orgAdmin', true, true],
+    ['locationManager', true, false],
+    ['departmentLead', true, false],
+    ['staff', false, false],
+    ['contractor', false, false],
+    ['itSupport', false, false],
+  ])('%s: Manager %s, Organization Scope %s', (role, manager, organization) => {
+    expect(isManager({ role })).toBe(manager)
+    expect(hasOrganizationScope({ role })).toBe(organization)
+  })
+
+  it.each<[UserRole, Partial<Channel>, boolean]>([
+    ['owner', {}, true],
+    ['orgAdmin', {}, true],
+    ['locationManager', { locationIds: ['loc-a'] }, true],
+    ['locationManager', { memberIds: ['self'], visibility: 'public' }, false],
+    ['departmentLead', { locationIds: ['loc-a'], departmentIds: ['dep-a'] }, true],
+    ['departmentLead', { locationIds: ['loc-a'], departmentIds: [] }, false],
+    ['departmentLead', { locationIds: ['loc-a'], departmentIds: ['dep-b'] }, false],
+    ['staff', { visibility: 'public' }, true],
+    ['staff', { memberIds: ['self'] }, true],
+    ['staff', { locationIds: ['loc-a'] }, false],
+  ])('canSeeChannel %s %j -> %s', (role, patch, expected) => {
+    expect(canSeeChannel(binding(role), channel(patch), 'self')).toBe(expected)
+  })
+
+  const assignments = [
+    { userId: 'in-location', locationId: 'loc-a', departmentId: 'dep-b' },
+    { userId: 'in-department', locationId: 'loc-b', departmentId: 'dep-a' },
+  ]
+  it.each<[UserRole, string, boolean]>([
+    ['owner', 'anyone', true],
+    ['orgAdmin', 'anyone', true],
+    ['locationManager', 'in-location', true],
+    ['locationManager', 'in-department', false],
+    ['locationManager', 'self', false],
+    ['departmentLead', 'in-department', true],
+    ['departmentLead', 'in-location', false],
+    ['staff', 'self', true],
+    ['staff', 'in-location', false],
+  ])('canAssignTaskTo %s -> %s is %s', (role, memberId, expected) => {
+    expect(canAssignTaskTo(binding(role), memberId, 'self', assignments)).toBe(expected)
   })
 })

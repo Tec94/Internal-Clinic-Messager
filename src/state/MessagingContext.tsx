@@ -23,9 +23,11 @@ import type {
 } from '../services/messagingRepository'
 import {
   createSupabaseAttachmentRepository,
-  formatBytes,
   type AttachmentRepository,
 } from '../services/attachmentRepository'
+import { directChannelTitle } from '../services/directChannel'
+import { canSendMessageInChannel } from '../services/permissions'
+import { initials } from '../services/rowMappers'
 import { createSupabaseMessagingRepository } from '../services/supabaseMessagingRepository'
 import { validateUploadFiles } from '../services/uploadAdapter'
 import type {
@@ -51,8 +53,6 @@ interface MessagingContextValue {
   isLoading: boolean
   error: string | null
   supportsAttachments: boolean
-  supportsChannelCreation: boolean
-  supportsIntegrations: boolean
   canSendMessage: (channelId: string) => boolean
   uploadAttachments: (
     files: File[],
@@ -143,13 +143,22 @@ export function MessagingProvider({
     enabled: productionEnabled,
   })
 
-  const productionChannels = useMemo(
-    () => (channelsQuery.data ?? []).map(mapChannel),
-    [channelsQuery.data],
-  )
   const productionMembers = useMemo(
     () => (membersQuery.data ?? []).map(mapMember),
     [membersQuery.data],
+  )
+  const productionChannels = useMemo(
+    () => (channelsQuery.data ?? []).map((channel) => {
+      const mapped = mapChannel(channel)
+      if (channel.type !== 'direct' || !membership) return mapped
+      const title = directChannelTitle(
+        channel.memberIds,
+        membership.id,
+        (memberId) => productionMembers.find((member) => member.memberId === memberId)?.fullName,
+      )
+      return title ? { ...mapped, displayName: title } : mapped
+    }),
+    [channelsQuery.data, membership, productionMembers],
   )
   const appendToMessageCache = useCallback((message: MessagingMessage) => {
     if (!membership) return
@@ -176,8 +185,6 @@ export function MessagingProvider({
         && (channelsQuery.isPending || membersQuery.isPending),
       error: error instanceof Error ? error.message : null,
       supportsAttachments: attachmentsEnabled,
-      supportsChannelCreation: true,
-      supportsIntegrations: true,
       canSendMessage: (channelId) => (
         productionChannels.find((channel) => channel.id === channelId)
           ?.canSend ?? false
@@ -334,7 +341,7 @@ export function useMessagingThread(channelId: string): MessagingThreadState {
 
   if (!messaging.isProduction) {
     return {
-      messages: clinic.messages.filter(
+      messages: (clinic.preview?.messages ?? []).filter(
         (message) => message.channelId === channelId,
       ),
       isLoading: false,
@@ -369,9 +376,10 @@ function createPreviewValue(
   clinic: ReturnType<typeof useClinic>,
   repository: MessagingRepository,
 ): MessagingContextValue {
+  const chat = clinic.preview
   return {
     isProduction: false,
-    channels: clinic.channels,
+    channels: chat?.channels ?? [],
     members: clinic.users.map((user) => ({
       memberId: user.id,
       userId: user.id,
@@ -387,14 +395,16 @@ function createPreviewValue(
     isLoading: false,
     error: null,
     supportsAttachments: true,
-    supportsChannelCreation: true,
-    supportsIntegrations: true,
-    canSendMessage: clinic.canSendMessage,
-    sendMessage: async (input) => clinic.sendMessage(input),
-    uploadAttachments: (files, channelId) => clinic.uploadAttachments(
-      files,
-      { kind: 'message', channelId },
+    canSendMessage: (channelId) => canSendMessageInChannel(
+      clinic.currentBinding,
+      clinic.currentUser.id,
+      chat?.channels.find((item) => item.id === channelId),
     ),
+    sendMessage: async (input) => chat?.sendMessage(input) ?? null,
+    uploadAttachments: async (files, channelId) => {
+      if (!chat) throw new Error('Use the authenticated attachment uploader.')
+      return chat.uploadAttachments(files, { kind: 'message', channelId })
+    },
     downloadAttachment: async (attachmentId) => {
       const attachment = clinic.attachments.find(
         (item) => item.id === attachmentId,
@@ -429,12 +439,7 @@ function mapChannel(channel: MessagingChannel): Channel & { canSend: boolean } {
 function mapMember(member: MessagingMember): MessagingViewMember {
   return {
     ...member,
-    initials: member.fullName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(-2)
-      .map((part) => part[0]?.toLocaleUpperCase())
-      .join(''),
+    initials: initials(member.fullName),
     presence: 'offline',
   }
 }
@@ -451,17 +456,8 @@ function mapMessage(message: MessagingMessage): Message {
     meetingId: message.meetingId,
     attachmentIds: message.attachmentIds,
     attachments: message.attachments.map((attachment) => ({
-      id: attachment.id,
-      name: attachment.originalName,
-      type: attachment.mimeType,
-      sizeLabel: formatBytes(attachment.sizeBytes),
-      sizeBytes: attachment.sizeBytes,
-      uploadedBy: attachment.uploaderMemberId,
-      uploadedAt: attachment.createdAt,
-      channelId: attachment.channelId,
+      ...attachment,
       messageId: message.id,
-      status: attachment.status,
-      scanStatus: attachment.scanStatus,
     })),
   }
 }

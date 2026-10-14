@@ -1,27 +1,4 @@
-import {
-  auditEvents,
-  staffingSnapshots,
-} from '../data/seed'
-import type {
-  AuditEvent,
-  MeetingCandidate,
-  PolicyWarning,
-  StaffingSnapshot,
-} from '../types/domain'
-
-const wait = (duration = 120) =>
-  new Promise<void>((resolve) => window.setTimeout(resolve, duration))
-
-export const clinicService = {
-  async getStaffing(): Promise<StaffingSnapshot[]> {
-    await wait()
-    return staffingSnapshots
-  },
-  async getAuditEvents(): Promise<AuditEvent[]> {
-    await wait()
-    return auditEvents
-  },
-}
+import type { MeetingCandidate } from '../types/domain'
 
 const monthIndexes: Record<string, number> = {
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
@@ -138,30 +115,4 @@ export function detectMeetingCandidate(
   }
 
   return { provider, joinUrl, title: titleFromMeetingText(value, joinUrl), startsAt, endsAt, timezone }
-}
-
-const warningPatterns = [
-  { ruleId: 'possible-mrn', expression: /\b(?:mrn|medical record)\s*[:#-]?\s*\d{4,}\b/i },
-  { ruleId: 'possible-date-of-birth', expression: /\b(?:dob|date of birth)\s*[:#-]?/i },
-  { ruleId: 'patient-language', expression: /\bpatient\s+(?:named|name|case|record)\b/i },
-]
-
-export function inspectOperationalContent(
-  value: string,
-  field: PolicyWarning['field'] = 'message',
-): PolicyWarning[] {
-  return warningPatterns.flatMap((pattern, index) => {
-    const match = value.match(pattern.expression)
-    if (!match) return []
-    return [
-      {
-        id: `warning-${Date.now()}-${index}`,
-        field,
-        ruleId: pattern.ruleId,
-        messageKey: 'policy.possiblePhi',
-        matchedText: match[0],
-        createdAt: new Date().toISOString(),
-      },
-    ]
-  })
 }

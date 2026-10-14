@@ -120,7 +120,7 @@ const TaskDetail = ({ taskId }: { taskId: string }) => {
   );
   const completed = task.checklist.filter((item) => item.completed).length;
   const checklistComplete = task.checklist.every((item) => item.completed);
-  const checklistEditable = ["accepted", "inProgress", "blocked"].includes(task.status);
+  const checklistEditable = ["accepted", "inProgress"].includes(task.status);
 
   const perform = (action: MiniStateAction) => {
     if (action.type === "task/accept" || action.type === "task/decline") {
@@ -135,6 +135,7 @@ const TaskDetail = ({ taskId }: { taskId: string }) => {
           }, {}),
           declineReason: task.declineReason,
           blockerReason: task.blockerReason,
+          statusBeforeBlock: task.statusBeforeBlock,
         },
       }, t("tasks.updated"));
     } else {

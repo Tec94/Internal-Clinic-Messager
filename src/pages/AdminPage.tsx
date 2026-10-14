@@ -17,8 +17,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AnnouncementDialog } from '../components/AnnouncementDialog'
 import { AppSelect } from '../components/AppSelect'
 import { Avatar, Button, StatusBadge } from '../components/ui'
+import { hasOrganizationScope } from '../services/permissions'
 import type { Permission, UserRole } from '../types/domain'
 import { useClinic } from '../state/ClinicContext'
+import { useMessaging } from '../state/MessagingContext'
 
 export type AdminSection =
   | 'overview'
@@ -88,10 +90,10 @@ function OverviewView() {
     accessRequests,
     announcements,
     assignments,
-    channels,
     users,
     locations,
   } = useClinic()
+  const { channels } = useMessaging()
   const expiringChannels = channels.filter((channel) => channel.archiveAt).slice(0, 3)
   return (
     <div className="admin-overview">
@@ -240,7 +242,7 @@ function PeopleView() {
   } = useClinic()
   const [editing, setEditing] = useState<string | null>(null)
   const [error, setError] = useState('')
-  const visibleUsers = users.filter((user) => currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin' || assignments.some((assignment) => assignment.userId === user.id && currentBinding.locationIds.includes(assignment.locationId)))
+  const visibleUsers = users.filter((user) => hasOrganizationScope(currentBinding) || assignments.some((assignment) => assignment.userId === user.id && currentBinding.locationIds.includes(assignment.locationId)))
   const selectedAssignment = assignments.find(
     (assignment) => assignment.userId === editing && assignment.isPrimary,
   )
@@ -367,11 +369,11 @@ function ChannelsView() {
   const { t } = useTranslation()
   const {
     accessRequests,
-    channels,
     users,
     locations,
     resolveAccessRequest,
   } = useClinic()
+  const { channels } = useMessaging()
   const [error, setError] = useState('')
   const resolve = async (
     requestId: string,
@@ -467,7 +469,8 @@ function AuditView() {
 function IncidentView() {
   const { t } = useTranslation()
   const { incidentId } = useParams()
-  const { auditEvents, channels, users, locations } = useClinic()
+  const { auditEvents, users, locations } = useClinic()
+  const { channels } = useMessaging()
   const navigate = useNavigate()
   const incident = channels.find((item) => item.id === incidentId) ?? channels.find((item) => item.type === 'incident')
   const incidentEvents = auditEvents.filter(

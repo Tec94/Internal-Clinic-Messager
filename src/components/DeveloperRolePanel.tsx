@@ -9,10 +9,12 @@ export function DeveloperRolePanel() {
   const {
     users,
     currentUser,
-    setCurrentUserId,
+    preview,
     roleBindings,
   } = useClinic()
   const [open, setOpen] = useState(false)
+  // Persona switching exists only in Preview mode.
+  if (!preview) return null
 
   return (
     <section className={`developer-role-panel ${open ? 'is-open' : ''}`}>
@@ -36,7 +38,7 @@ export function DeveloperRolePanel() {
             <AppSelect
               id="developer-role-user"
               value={currentUser.id}
-              onValueChange={setCurrentUserId}
+              onValueChange={preview.setCurrentUserId}
               options={users.map((user) => {
                 const role = roleBindings.find((binding) =>
                   user.roleBindingIds.includes(binding.id),

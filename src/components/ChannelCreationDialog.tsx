@@ -6,7 +6,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
-import { inspectOperationalContent } from '../services/mockClinicService'
+import { inspectOperationalContent } from '../services/patientInfoWarning'
 import { useClinic } from '../state/ClinicContext'
 import type { CreateChannelInput } from '../types/domain'
 import { AppSelect } from './AppSelect'
@@ -90,9 +90,9 @@ export function ChannelCreationDialog({
       setPolicyWarning(true)
       return
     }
-    const channel = await createChannel(input)
+    const channelId = await createChannel(input)
     onOpenChange(false)
-    navigate(`/channels/${channel.id}`)
+    navigate(`/channels/${channelId}`)
   }
 
   return (

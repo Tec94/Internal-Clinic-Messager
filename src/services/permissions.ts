@@ -1,4 +1,4 @@
-import type { Channel, Permission, RoleBinding, UserRole } from '../types/domain'
+import type { Assignment, Channel, Permission, RoleBinding, UserRole } from '../types/domain'
 
 const permissionMap: Record<UserRole, Permission[]> = {
   owner: [
@@ -53,12 +53,42 @@ export function hasPermission(binding: RoleBinding, permission: Permission) {
   return permissionMap[binding.role].includes(permission)
 }
 
+// Presentation only (ADR-0002): RLS stays the authoritative check.
+type Scoped = Pick<RoleBinding, 'role'>
+const managerRoles: UserRole[] = ['owner', 'orgAdmin', 'locationManager', 'departmentLead']
+
+export const isManager = (binding: Scoped) => managerRoles.includes(binding.role)
+
+export const hasOrganizationScope = (binding: Scoped) =>
+  binding.role === 'owner' || binding.role === 'orgAdmin'
+
+export function canSeeChannel(binding: RoleBinding, channel: Channel, memberId: string) {
+  if (hasOrganizationScope(binding)) return true
+  const inAssignedLocation = channel.locationIds.some((locationId) => binding.locationIds.includes(locationId))
+  if (binding.role === 'locationManager') return inAssignedLocation
+  if (binding.role === 'departmentLead') return inAssignedLocation && channel.departmentIds.some((departmentId) => binding.departmentIds.includes(departmentId))
+  return channel.visibility === 'public' || channel.memberIds.includes(memberId)
+}
+
+export function canAssignTaskTo(
+  binding: RoleBinding,
+  memberId: string,
+  selfId: string,
+  assignments: Pick<Assignment, 'userId' | 'locationId' | 'departmentId'>[],
+) {
+  if (!isManager(binding)) return memberId === selfId
+  if (hasOrganizationScope(binding)) return true
+  return assignments.some((assignment) => assignment.userId === memberId && (binding.role === 'locationManager'
+    ? binding.locationIds.includes(assignment.locationId)
+    : binding.departmentIds.includes(assignment.departmentId)))
+}
+
 function isActiveBinding(binding: RoleBinding, now = new Date()) {
   return !binding.expiresAt || new Date(binding.expiresAt) > now
 }
 
 export function canPostToAnnouncementChannel(binding: RoleBinding, channel: Channel) {
-  if (binding.role === 'owner' || binding.role === 'orgAdmin') return true
+  if (hasOrganizationScope(binding)) return true
   const inAssignedLocation = channel.locationIds.some((locationId) =>
     binding.locationIds.includes(locationId),
   )

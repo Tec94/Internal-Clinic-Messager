@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { useClinic } from '../state/ClinicContext'
+import { hasOrganizationScope } from '../services/permissions'
 import type { AnnouncementAudience, AnnouncementPriority } from '../types/domain'
 import { Button, IconButton } from './ui'
 
@@ -131,13 +132,13 @@ export function AnnouncementDialog({
               <div className="audience-grid" aria-disabled={organizationWide}>
                 <div>
                   <strong>{t('announcement.selectedLocations')}</strong>
-                  {locations.filter((item) => currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin' || currentBinding.locationIds.includes(item.id)).map((item) => (
+                  {locations.filter((item) => hasOrganizationScope(currentBinding) || currentBinding.locationIds.includes(item.id)).map((item) => (
                     <label className="choice-row" key={item.id}><input type="checkbox" value={item.id} {...register('locationIds')} disabled={organizationWide} /><span>{item.shortName}</span></label>
                   ))}
                 </div>
                 <div>
                   <strong>{t('announcement.selectedDepartments')}</strong>
-                  {departments.filter((item) => currentBinding.role === 'owner' || currentBinding.role === 'orgAdmin' || currentBinding.departmentIds.includes(item.id)).slice(0, 5).map((item) => (
+                  {departments.filter((item) => hasOrganizationScope(currentBinding) || currentBinding.departmentIds.includes(item.id)).slice(0, 5).map((item) => (
                     <label className="choice-row" key={item.id}><input type="checkbox" value={item.id} {...register('departmentIds')} disabled={organizationWide} /><span>{item.name}</span></label>
                   ))}
                 </div>
