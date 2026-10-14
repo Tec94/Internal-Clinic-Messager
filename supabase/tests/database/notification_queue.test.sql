@@ -10,7 +10,7 @@ create temporary table notification_fixture as select
   gen_random_uuid() as message, gen_random_uuid() as second_message, gen_random_uuid() as third_message;
 
 insert into auth.users(id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data)
-select author_user, 'authenticated', 'authenticated', 'queue-author@example.test', '', '{}', '{}' from notification_fixture
+select author_user, 'authenticated', 'authenticated', 'queue-author@example.test', '', '{}'::jsonb, '{}'::jsonb from notification_fixture
 union all select recipient_user, 'authenticated', 'authenticated', 'queue-recipient@example.test', '', '{}', '{}' from notification_fixture
 union all select outsider_user, 'authenticated', 'authenticated', 'queue-outsider@example.test', '', '{}', '{}' from notification_fixture;
 insert into public.organizations(id, name, slug)

@@ -225,14 +225,14 @@ values ('70000000-0000-0000-0000-000000000051', '00000000-0000-0000-0000-0000000
 insert into public.task_template_items (organization_id, template_id, position, label)
 values ('00000000-0000-0000-0000-000000000051', '70000000-0000-0000-0000-000000000051', 0, 'Confirm readiness');
 insert into public.task_schedules (id, organization_id, template_id, created_by_member_id, channel_id, owner_member_id, frequency, due_local_time, timezone, create_lead_minutes, next_due_at)
-values ('71000000-0000-0000-0000-000000000051', '00000000-0000-0000-0000-000000000051', '70000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000051', '50000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000054', 'daily', '19:00'::time, 'Asia/Ho_Chi_Minh', 1440, '2026-08-04 12:00:00+00');
+values ('71000000-0000-0000-0000-000000000051', '00000000-0000-0000-0000-000000000051', '70000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000051', '50000000-0000-0000-0000-000000000051', '20000000-0000-0000-0000-000000000054', 'daily', '19:00'::time, 'Asia/Ho_Chi_Minh', 1440, now() + interval '1 day');
 
-select is(private.generate_due_task_occurrences('2026-08-03 12:00:00+00'), 1, 'the recurrence generator creates an eligible independent occurrence');
-select is(private.generate_due_task_occurrences('2026-08-03 12:00:00+00'), 0, 'the recurrence generator is idempotent at the same reference time');
+select is(private.generate_due_task_occurrences(now()), 1, 'the recurrence generator creates an eligible independent occurrence');
+select is(private.generate_due_task_occurrences(now()), 0, 'the recurrence generator is idempotent at the same reference time');
 update public.task_templates set title = 'Future recurring title' where id = '70000000-0000-0000-0000-000000000051';
 select is((select title from public.tasks where schedule_id = '71000000-0000-0000-0000-000000000051'), 'Recurring check', 'schedule edits do not rewrite existing occurrences');
-update public.task_schedules set active = false, next_due_at = '2026-08-04 12:00:00+00' where id = '71000000-0000-0000-0000-000000000051';
-select is(private.generate_due_task_occurrences('2026-08-03 12:00:00+00'), 0, 'paused schedules do not generate occurrences');
+update public.task_schedules set active = false, next_due_at = now() + interval '1 day' where id = '71000000-0000-0000-0000-000000000051';
+select is(private.generate_due_task_occurrences(now()), 0, 'paused schedules do not generate occurrences');
 select is((select count(*) from public.tasks where schedule_id = '71000000-0000-0000-0000-000000000051'), 1::bigint, 'a schedule occurrence remains independent and unique');
 
 select * from finish();
